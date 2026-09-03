@@ -1,0 +1,189 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap');
+
+:root {
+    /* Core Medical Palette */
+    --primary: #4A90E2;
+    --primary-rgb: 74, 144, 226;
+    --primary-hover: #357ABD;
+    --secondary: #6FCF97;
+    --secondary-rgb: 111, 207, 151;
+    --accent: #8B5CF6;
+    --accent-soft: #f5f3ff;
+
+    /* Backgrounds & Surfaces */
+    --background: #F6F9FC;
+    --surface: #FFFFFF;
+    --surface-alt: #E8F2FF;
+    --surface-green: #F0FDF4;
+
+    /* Text Colors */
+    --text-main: #1A2B3C;
+    --text-sub: #5E7185;
+    --text-muted: #8E9BAE;
+
+    /* Status Colors */
+    --success: #6FCF97;
+    --warning: #F59E0B;
+    --danger: #EF4444;
+
+    /* Gradients */
+    --grad-primary: linear-gradient(135deg, #4A90E2, #6FCF97);
+    --grad-accent: linear-gradient(135deg, #8B5CF6, #4A90E2);
+    --grad-surface: linear-gradient(180deg, #FFFFFF 0%, #F8FAFC 100%);
+
+    /* Shadows & Radius */
+    --shadow-sm: 0 2px 4px rgba(74, 144, 226, 0.05);
+    --shadow-md: 0 10px 20px -5px rgba(74, 144, 226, 0.1);
+    --shadow-lg: 0 20px 40px -10px rgba(74, 144, 226, 0.15);
+    --radius-sm: 8px;
+    --radius-md: 16px;
+    --radius-lg: 24px;
+
+    /* Transitions */
+    --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background);
+    color: var(--text-main);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 32px;
+}
+
+/* Modern Button System */
+.btn-primary-lg {
+    background: var(--grad-primary);
+    color: white;
+    padding: 16px 32px;
+    border-radius: var(--radius-md);
+    border: none;
+    font-weight: 700;
+    font-size: 1rem;
+    box-shadow: 0 10px 20px -5px rgba(111, 207, 151, 0.4);
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    transition: var(--transition);
+    text-decoration: none;
+}
+
+.btn-primary-lg:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 15px 30px -5px rgba(111, 207, 151, 0.5);
+}
+
+.btn-outline-lg {
+    background: white;
+    color: var(--primary);
+    padding: 16px 32px;
+    border-radius: var(--radius-md);
+    border: 2px solid var(--surface-alt);
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    transition: var(--transition);
+    text-decoration: none;
+}
+
+.btn-outline-lg:hover {
+    background: var(--surface-alt);
+    border-color: var(--primary);
+}
+
+/* Card System */
+.card-modern {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    box-shadow: var(--shadow-md);
+    border: 1px solid rgba(232, 242, 255, 0.5);
+    transition: var(--transition);
+}
+
+.card-modern:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-lg);
+}
+
+/* Animations */
+@keyframes float {
+
+    0%,
+    100% {
+        transform: translateY(0) rotate(0);
+    }
+
+    50% {
+        transform: translateY(-20px) rotate(2deg);
+    }
+}
+
+@keyframes pulse-soft {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.8;
+        transform: scale(1.05);
+    }
+}
+
+@keyframes fade-in-up {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-fade-up {
+    animation: fade-in-up 0.6s ease-out forwards;
+}
+
+/* Accessibility Focus */
+button:focus-visible,
+a:focus-visible {
+    outline: 3px solid var(--accent);
+    outline-offset: 4px;
+}
+
+/* Utility Classes */
+.mt-4  { margin-top: 32px; }
+.mt-2  { margin-top: 16px; }
+.mb-2  { margin-bottom: 16px; }
+.text-primary   { color: var(--primary); }
+.text-secondary { color: var(--secondary); }
+.text-muted     { color: var(--text-muted); }

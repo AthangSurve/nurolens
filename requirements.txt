@@ -1,0 +1,11 @@
+torch
+torchvision
+transformers
+librosa
+soundfile
+scikit-learn
+xgboost
+pandas
+numpy
+joblib
+Pillow

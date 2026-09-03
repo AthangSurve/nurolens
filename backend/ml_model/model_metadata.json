@@ -1,0 +1,53 @@
+{
+  "model_version": "1.0.0",
+  "trained_on": "2026-09-03 09:28:25.185808",
+  "dataset": "NACC (National Alzheimer Coordinating Center)",
+  "total_samples": 55268,
+  "classifier": {
+    "model_type": "XGBoost",
+    "features": [
+      "age",
+      "sex_encoded",
+      "education",
+      "moca",
+      "cdr_sum"
+    ],
+    "accuracy": 0.9255,
+    "roc_auc_test": 0.9741,
+    "roc_auc_cv_mean": 0.9749,
+    "feature_importance": {
+      "age": 0.0112,
+      "sex_encoded": 0.0148,
+      "education": 0.0137,
+      "moca": 0.0422,
+      "cdr_sum": 0.9181
+    }
+  },
+  "moca_norm": {
+    "model_type": "GradientBoostingRegressor",
+    "features": [
+      "age",
+      "sex_encoded",
+      "education"
+    ],
+    "normal_subjects": 9403,
+    "mae": 2.07,
+    "r2": 0.1601,
+    "residual_std": 2.586,
+    "interpretation": "Predicts expected MoCA for cognitively normal individual with given age/sex/education"
+  },
+  "risk_thresholds": {
+    "dementia_prob_low": 0.25,
+    "dementia_prob_moderate": 0.55,
+    "description": "P < 0.25 = Low, 0.25\u20130.55 = Moderate, > 0.55 = High"
+  },
+  "education_band_mapping": {
+    "low": "0\u20138 years",
+    "medium": "9\u201312 years (high school)",
+    "high": "13+ years (college/university)"
+  },
+  "sex_encoding": {
+    "0": "Male",
+    "1": "Female"
+  }
+}

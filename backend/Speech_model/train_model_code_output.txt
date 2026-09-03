@@ -1,0 +1,329 @@
+CELL 1 - CODE
+------------------------------------------------------------
+python train_model.py
+
+CELL 2 - CODE
+------------------------------------------------------------
+python train_model.py
+
+CELL 3 - CODE
+------------------------------------------------------------
+from google.colab import drive
+
+drive.mount('/content/drive')
+
+CELL 4 - CODE
+------------------------------------------------------------
+!pip install -q transformers librosa tqdm
+
+CELL 5 - CODE
+------------------------------------------------------------
+import os
+
+
+
+DATASET_PATH = "/content/drive/MyDrive/speech_data"  # ← change if needed
+
+
+
+assert os.path.isdir(DATASET_PATH), f"Dataset not found: {DATASET_PATH}"
+
+print("demented    :", os.listdir(os.path.join(DATASET_PATH, 'demented'))[:5])
+
+print("non-demented:", os.listdir(os.path.join(DATASET_PATH, 'non-demented'))[:5])
+
+CELL 6 - CODE
+------------------------------------------------------------
+import warnings
+
+warnings.filterwarnings("ignore")
+
+
+
+import numpy as np
+
+import pandas as pd
+
+import librosa
+
+import torch
+
+import joblib
+
+from tqdm import tqdm
+
+from transformers import Wav2Vec2Processor, Wav2Vec2Model
+
+from sklearn.preprocessing import StandardScaler
+
+from sklearn.decomposition import PCA
+
+from sklearn.linear_model import LogisticRegression
+
+from sklearn.model_selection import train_test_split
+
+from sklearn.metrics import classification_report, accuracy_score
+
+
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+print("Device:", device)
+
+CELL 7 - CODE
+------------------------------------------------------------
+processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
+
+wav2vec   = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h").to(device)
+
+wav2vec.eval()
+
+print("Wav2Vec2 ready.")
+
+CELL 8 - CODE
+------------------------------------------------------------
+rows = []
+
+
+
+for label_name in ["demented", "non-demented"]:
+
+    label      = 1 if label_name == "demented" else 0
+
+    class_path = os.path.join(DATASET_PATH, label_name)
+
+    for speaker in os.listdir(class_path):
+
+        speaker_path = os.path.join(class_path, speaker)
+
+        if not os.path.isdir(speaker_path):
+
+            continue
+
+        for fname in os.listdir(speaker_path):
+
+            if fname.lower().endswith(".wav"):
+
+                rows.append({"file_path": os.path.join(speaker_path, fname),
+
+                             "speaker": speaker, "label": label})
+
+
+
+df = pd.DataFrame(rows)
+
+print(f"Total   : {len(df)}")
+
+print(f"Demented: {(df.label==1).sum()}  |  Non-demented: {(df.label==0).sum()}")
+
+df.head()
+
+CELL 9 - CODE
+------------------------------------------------------------
+speakers = df["speaker"].unique()
+
+train_spk, test_spk = train_test_split(speakers, test_size=0.2, random_state=42)
+
+
+
+train_df = df[df["speaker"].isin(train_spk)].reset_index(drop=True)
+
+test_df  = df[df["speaker"].isin(test_spk)].reset_index(drop=True)
+
+
+
+print(f"Train: {len(train_df)}  |  Test: {len(test_df)}")
+
+CELL 10 - CODE
+------------------------------------------------------------
+def extract_features(file_path):
+
+    audio, sr = librosa.load(file_path, sr=16000)
+
+
+
+    # 1. Wav2Vec2 embeddings — 768
+
+    inputs = processor(audio, sampling_rate=16000, return_tensors="pt", padding=True)
+
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+
+    with torch.no_grad():
+
+        outputs = wav2vec(**inputs)
+
+    wav2vec_features = outputs.last_hidden_state.mean(dim=1).squeeze().cpu().numpy()
+
+
+
+    # 2. Pause stats — 3
+
+    intervals = librosa.effects.split(audio, top_db=25)
+
+    pauses, prev_end = [], 0
+
+    for start, end in intervals:
+
+        pause = start - prev_end
+
+        if pause > 0:
+
+            pauses.append(pause / sr)
+
+        prev_end = end
+
+    pause_features = [0.0, 0.0, 0.0] if not pauses else [
+
+        float(np.mean(pauses)), float(np.max(pauses)), float(len(pauses))]
+
+
+
+    # 3. RMS energy — 1
+
+    energy = float(np.mean(librosa.feature.rms(y=audio)))
+
+
+
+    return np.concatenate([wav2vec_features, pause_features, [energy]])  # (772,)
+
+CELL 11 - CODE
+------------------------------------------------------------
+print("Extracting TRAIN features...")
+
+X_train, y_train, errors = [], [], []
+
+
+
+for _, row in tqdm(train_df.iterrows(), total=len(train_df)):
+
+    try:
+
+        X_train.append(extract_features(row["file_path"]))
+
+        y_train.append(row["label"])
+
+    except Exception as e:
+
+        errors.append((row["file_path"], str(e)))
+
+
+
+X_train = np.array(X_train)
+
+y_train = np.array(y_train)
+
+print(f"Shape: {X_train.shape}  |  Errors: {len(errors)}")
+
+CELL 12 - CODE
+------------------------------------------------------------
+print("Extracting TEST features...")
+
+X_test, y_test, errors = [], [], []
+
+
+
+for _, row in tqdm(test_df.iterrows(), total=len(test_df)):
+
+    try:
+
+        X_test.append(extract_features(row["file_path"]))
+
+        y_test.append(row["label"])
+
+    except Exception as e:
+
+        errors.append((row["file_path"], str(e)))
+
+
+
+X_test = np.array(X_test)
+
+y_test = np.array(y_test)
+
+print(f"Shape: {X_test.shape}  |  Errors: {len(errors)}")
+
+CELL 13 - CODE
+------------------------------------------------------------
+scaler    = StandardScaler()
+
+X_train_s = scaler.fit_transform(X_train)
+
+X_test_s  = scaler.transform(X_test)
+
+print("Scaled — train:", X_train_s.shape, " test:", X_test_s.shape)
+
+CELL 14 - CODE
+------------------------------------------------------------
+pca       = PCA(n_components=100, random_state=42)
+
+X_train_p = pca.fit_transform(X_train_s)
+
+X_test_p  = pca.transform(X_test_s)
+
+print(f"Explained variance: {pca.explained_variance_ratio_.sum():.3f}")
+
+print("PCA — train:", X_train_p.shape, " test:", X_test_p.shape)
+
+CELL 15 - CODE
+------------------------------------------------------------
+clf = LogisticRegression(max_iter=4000, class_weight="balanced", C=0.5, random_state=42)
+
+clf.fit(X_train_p, y_train)
+
+print("Training complete.")
+
+CELL 16 - CODE
+------------------------------------------------------------
+y_pred = clf.predict(X_test_p)
+
+print(f"Test Accuracy: {accuracy_score(y_test, y_pred):.4f}\n")
+
+print(classification_report(y_test, y_pred, target_names=["Non-Demented", "Demented"]))
+
+CELL 17 - CODE
+------------------------------------------------------------
+joblib.dump(scaler, "scaler.pkl")
+
+joblib.dump(pca,    "pca.pkl")
+
+joblib.dump(clf,    "dementia_model.pkl")
+
+print("Saved scaler.pkl, pca.pkl, dementia_model.pkl")
+
+CELL 18 - CODE
+------------------------------------------------------------
+# Sanity-check dimensions, then download
+
+import warnings; warnings.filterwarnings("ignore")
+
+s = joblib.load("scaler.pkl")
+
+p = joblib.load("pca.pkl")
+
+m = joblib.load("dementia_model.pkl")
+
+
+
+assert s.n_features_in_ == 772, f"scaler expects {s.n_features_in_}, expected 772"
+
+assert p.n_features_in_ == 772, f"pca expects {p.n_features_in_}, expected 772"
+
+assert p.n_components_  == 100, f"pca has {p.n_components_} components, expected 100"
+
+assert m.n_features_in_ == 100, f"classifier expects {m.n_features_in_}, expected 100"
+
+print("All checks passed — downloading 3 pkl files now...")
+
+
+
+from google.colab import files
+
+files.download("scaler.pkl")
+
+files.download("pca.pkl")
+
+files.download("dementia_model.pkl")
+
+
+
+print("Done! Place all 3 pkl files in: backend/Speech_model/")

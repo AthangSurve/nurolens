@@ -1,0 +1,362 @@
+SPEECH MODEL - COMPACT CODE + OUTPUT
+================================================================================
+Source notebooks:
+- backend/Speech_model/train_model.ipynb
+- backend/Speech_model/speech_model.ipynb
+### FROM: train_model.ipynb
+CELL 1 - CODE
+------------------------------------------------------------
+import warnings
+warnings.filterwarnings("ignore")
+import numpy as np
+import pandas as pd
+import librosa
+import torch
+import joblib
+from tqdm import tqdm
+from transformers import Wav2Vec2Processor, Wav2Vec2Model
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report, accuracy_score
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Device:", device)
+CELL 2 - CODE
+------------------------------------------------------------
+processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
+wav2vec   = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base-960h").to(device)
+wav2vec.eval()
+print("Wav2Vec2 ready.")
+CELL 3 - CODE
+------------------------------------------------------------
+rows = []
+for label_name in ["demented", "non-demented"]:
+    label      = 1 if label_name == "demented" else 0
+    class_path = os.path.join(DATASET_PATH, label_name)
+    for speaker in os.listdir(class_path):
+        speaker_path = os.path.join(class_path, speaker)
+        if not os.path.isdir(speaker_path):
+            continue
+        for fname in os.listdir(speaker_path):
+            if fname.lower().endswith(".wav"):
+                rows.append({"file_path": os.path.join(speaker_path, fname),
+                             "speaker": speaker, "label": label})
+df = pd.DataFrame(rows)
+print(f"Total   : {len(df)}")
+print(f"Demented: {(df.label==1).sum()}  |  Non-demented: {(df.label==0).sum()}")
+df.head()
+CELL 4 - CODE
+------------------------------------------------------------
+speakers = df["speaker"].unique()
+train_spk, test_spk = train_test_split(speakers, test_size=0.2, random_state=42)
+train_df = df[df["speaker"].isin(train_spk)].reset_index(drop=True)
+test_df  = df[df["speaker"].isin(test_spk)].reset_index(drop=True)
+print(f"Train: {len(train_df)}  |  Test: {len(test_df)}")
+CELL 5 - CODE
+------------------------------------------------------------
+def extract_features(file_path):
+    audio, sr = librosa.load(file_path, sr=16000)
+    # 1. Wav2Vec2 embeddings — 768
+    inputs = processor(audio, sampling_rate=16000, return_tensors="pt", padding=True)
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    with torch.no_grad():
+        outputs = wav2vec(**inputs)
+    wav2vec_features = outputs.last_hidden_state.mean(dim=1).squeeze().cpu().numpy()
+    # 2. Pause stats — 3
+    intervals = librosa.effects.split(audio, top_db=25)
+    pauses, prev_end = [], 0
+    for start, end in intervals:
+        pause = start - prev_end
+        if pause > 0:
+            pauses.append(pause / sr)
+        prev_end = end
+    pause_features = [0.0, 0.0, 0.0] if not pauses else [
+        float(np.mean(pauses)), float(np.max(pauses)), float(len(pauses))]
+    # 3. RMS energy — 1
+    energy = float(np.mean(librosa.feature.rms(y=audio)))
+    return np.concatenate([wav2vec_features, pause_features, [energy]])  # (772,)
+CELL 6 - CODE
+------------------------------------------------------------
+print("Extracting TRAIN features...")
+X_train, y_train, errors = [], [], []
+for _, row in tqdm(train_df.iterrows(), total=len(train_df)):
+    try:
+        X_train.append(extract_features(row["file_path"]))
+        y_train.append(row["label"])
+    except Exception as e:
+        errors.append((row["file_path"], str(e)))
+X_train = np.array(X_train)
+y_train = np.array(y_train)
+print(f"Shape: {X_train.shape}  |  Errors: {len(errors)}")
+CELL 7 - CODE
+------------------------------------------------------------
+print("Extracting TEST features...")
+X_test, y_test, errors = [], [], []
+for _, row in tqdm(test_df.iterrows(), total=len(test_df)):
+    try:
+        X_test.append(extract_features(row["file_path"]))
+        y_test.append(row["label"])
+    except Exception as e:
+        errors.append((row["file_path"], str(e)))
+X_test = np.array(X_test)
+y_test = np.array(y_test)
+print(f"Shape: {X_test.shape}  |  Errors: {len(errors)}")
+CELL 8 - CODE
+------------------------------------------------------------
+scaler    = StandardScaler()
+X_train_s = scaler.fit_transform(X_train)
+X_test_s  = scaler.transform(X_test)
+print("Scaled — train:", X_train_s.shape, " test:", X_test_s.shape)
+CELL 9 - CODE
+------------------------------------------------------------
+pca       = PCA(n_components=100, random_state=42)
+X_train_p = pca.fit_transform(X_train_s)
+X_test_p  = pca.transform(X_test_s)
+print(f"Explained variance: {pca.explained_variance_ratio_.sum():.3f}")
+print("PCA — train:", X_train_p.shape, " test:", X_test_p.shape)
+CELL 10 - CODE
+------------------------------------------------------------
+clf = LogisticRegression(max_iter=4000, class_weight="balanced", C=0.5, random_state=42)
+clf.fit(X_train_p, y_train)
+print("Training complete.")
+CELL 11 - CODE
+------------------------------------------------------------
+y_pred = clf.predict(X_test_p)
+print(f"Test Accuracy: {accuracy_score(y_test, y_pred):.4f}\n")
+print(classification_report(y_test, y_pred, target_names=["Non-Demented", "Demented"]))
+CELL 12 - CODE
+------------------------------------------------------------
+joblib.dump(scaler, "scaler.pkl")
+joblib.dump(pca,    "pca.pkl")
+joblib.dump(clf,    "dementia_model.pkl")
+print("Saved scaler.pkl, pca.pkl, dementia_model.pkl")
+### FROM: speech_model.ipynb
+CELL 13 - CODE
+------------------------------------------------------------
+import torch
+import librosa
+from transformers import Wav2Vec2Processor
+from transformers import Wav2Vec2Model
+CELL 14 - CODE
+------------------------------------------------------------
+processor = Wav2Vec2Processor.from_pretrained(
+    "facebook/wav2vec2-base-960h"
+)
+model = Wav2Vec2Model.from_pretrained(
+    "facebook/wav2vec2-base-960h"
+)
+CELL 14 - OUTPUT
+------------------------------------------------------------
+/usr/local/lib/python3.12/dist-packages/huggingface_hub/utils/_auth.py:94: UserWarning:
+The secret `HF_TOKEN` does not exist in your Colab secrets.
+To authenticate with the Hugging Face Hub, create a token in your settings tab (https://huggingface.co/settings/tokens), set it as secret in your Google Colab and restart your session.
+You will be able to reuse this secret in all of your notebooks.
+Please note that authentication is recommended but still optional to access public models or datasets.
+  warnings.warn(
+preprocessor_config.json:   0%|          | 0.00/159 [00:00<?, ?B/s]
+config.json: 0.00B [00:00, ?B/s]
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+WARNING:huggingface_hub.utils._http:Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+tokenizer_config.json:   0%|          | 0.00/163 [00:00<?, ?B/s]
+vocab.json:   0%|          | 0.00/291 [00:00<?, ?B/s]
+special_tokens_map.json:   0%|          | 0.00/85.0 [00:00<?, ?B/s]
+model.safetensors:   0%|          | 0.00/378M [00:00<?, ?B/s]
+Loading weights:   0%|          | 0/210 [00:00<?, ?it/s]
+Wav2Vec2Model LOAD REPORT from: facebook/wav2vec2-base-960h
+Key               | Status     |
+------------------+------------+-
+lm_head.bias      | UNEXPECTED |
+lm_head.weight    | UNEXPECTED |
+masked_spec_embed | MISSING    |
+Notes:
+- UNEXPECTED	:can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING	:those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+CELL 15 - CODE
+------------------------------------------------------------
+import os
+import pandas as pd
+DATASET_PATH = "/content/drive/MyDrive/speech_data"
+rows = []
+for label_name in ["demented", "non-demented"]:
+    label = 1 if label_name == "demented" else 0
+    class_path = os.path.join(DATASET_PATH, label_name)
+    for speaker in os.listdir(class_path):
+        speaker_path = os.path.join(class_path, speaker)
+        for file in os.listdir(speaker_path):
+            if file.lower().endswith(".wav"):
+                file_path = os.path.join(speaker_path, file)
+                rows.append({
+                    "file_path": file_path,
+                    "speaker": speaker,
+                    "label": label
+                })
+df = pd.DataFrame(rows)
+print("Total samples:", len(df))
+df.head()
+CELL 15 - OUTPUT
+------------------------------------------------------------
+Total samples: 353
+file_path        speaker  label
+0  /content/drive/MyDrive/speech_data/demented/Vi...  Viv Nicholson      1
+1  /content/drive/MyDrive/speech_data/demented/To...    Tony Parkes      1
+2  /content/drive/MyDrive/speech_data/demented/To...    Tony Parkes      1
+3  /content/drive/MyDrive/speech_data/demented/Va...        Vampiro      1
+4  /content/drive/MyDrive/speech_data/demented/Va...        Vampiro      1
+CELL 16 - CODE
+------------------------------------------------------------
+from sklearn.model_selection import train_test_split
+speakers = df["speaker"].unique()
+train_spk, test_spk = train_test_split(
+    speakers,
+    test_size=0.2,
+    random_state=42
+)
+train_df = df[df["speaker"].isin(train_spk)]
+test_df = df[df["speaker"].isin(test_spk)]
+print("Train samples:", len(train_df))
+print("Test samples:", len(test_df))
+CELL 16 - OUTPUT
+------------------------------------------------------------
+Train samples: 284
+Test samples: 69
+CELL 17 - CODE
+------------------------------------------------------------
+##FEATURE EXTRACTION
+import numpy as np
+import librosa
+import torch
+def extract_features(file_path):
+    audio, sr = librosa.load(file_path, sr=16000)
+    # -------------------
+    # Wav2Vec Embeddings
+    # -------------------
+    inputs = processor(
+        audio,
+        sampling_rate=16000,
+        return_tensors="pt",
+        padding=True
+    )
+    inputs = {k: v.to(device) for k, v in inputs.items()}
+    with torch.no_grad():
+        outputs = model(**inputs)
+    embeddings = outputs.last_hidden_state
+    wav2vec_features = embeddings.mean(dim=1).squeeze().cpu().numpy()
+    # -------------------
+    # Pause Features
+    # -------------------
+    intervals = librosa.effects.split(audio, top_db=25)
+    pauses = []
+    prev_end = 0
+    for start, end in intervals:
+        pause = start - prev_end
+        if pause > 0:
+            pauses.append(pause / sr)
+        prev_end = end
+    if len(pauses) == 0:
+        pause_features = [0, 0, 0]
+    else:
+        pause_features = [
+            np.mean(pauses),
+            np.max(pauses),
+            len(pauses)
+        ]
+    # -------------------
+    # Energy Feature
+    # -------------------
+    rms = librosa.feature.rms(y=audio)
+    energy = np.mean(rms)
+    # -------------------
+    # Combine Features
+    # -------------------
+    final_features = np.concatenate([
+        wav2vec_features,
+        pause_features,
+        [energy]
+    ])
+    return final_features
+CELL 18 - CODE
+------------------------------------------------------------
+X = []
+y = []
+from tqdm import tqdm
+for _, row in tqdm(train_df.iterrows(), total=len(train_df)):
+    features = extract_features(row["file_path"])
+    X.append(features)
+    y.append(row["label"])
+X = np.array(X)
+y = np.array(y)
+print(X.shape)
+CELL 18 - OUTPUT
+------------------------------------------------------------
+100%|██████████| 284/284 [02:39<00:00,  1.78it/s]
+(284, 772)
+CELL 19 - CODE
+------------------------------------------------------------
+X_test = []
+y_test = []
+for _, row in tqdm(test_df.iterrows(), total=len(test_df)):
+    features = extract_features(row["file_path"])
+    X_test.append(features)
+    y_test.append(row["label"])
+X_test = np.array(X_test)
+y_test = np.array(y_test)
+CELL 19 - OUTPUT
+------------------------------------------------------------
+100%|██████████| 69/69 [00:41<00:00,  1.67it/s]
+CELL 20 - CODE
+------------------------------------------------------------
+from sklearn.preprocessing import StandardScaler
+scaler = StandardScaler()
+X = scaler.fit_transform(X)
+X_test = scaler.transform(X_test)
+CELL 21 - CODE
+------------------------------------------------------------
+from sklearn.decomposition import PCA
+pca = PCA(n_components=100)
+X = pca.fit_transform(X)
+X_test = pca.transform(X_test)
+CELL 22 - CODE
+------------------------------------------------------------
+from sklearn.linear_model import LogisticRegression
+clf = LogisticRegression(
+    max_iter=4000,
+    class_weight="balanced",
+    C=0.5
+)
+clf.fit(X, y)
+CELL 22 - OUTPUT
+------------------------------------------------------------
+LogisticRegression(C=0.5, class_weight='balanced', max_iter=4000)
+CELL 23 - CODE
+------------------------------------------------------------
+from sklearn.metrics import classification_report
+preds = clf.predict(X_test)
+print(classification_report(y_test, preds))
+CELL 23 - OUTPUT
+------------------------------------------------------------
+precision    recall  f1-score   support
+           0       0.68      0.57      0.62        44
+           1       0.41      0.52      0.46        25
+    accuracy                           0.55        69
+   macro avg       0.54      0.54      0.54        69
+weighted avg       0.58      0.55      0.56        69
+CELL 24 - CODE
+------------------------------------------------------------
+import joblib
+joblib.dump(clf, "dementia_model.pkl")
+CELL 24 - OUTPUT
+------------------------------------------------------------
+['dementia_model.pkl']
+CELL 25 - CODE
+------------------------------------------------------------
+joblib.dump(pca, "pca.pkl")
+CELL 25 - OUTPUT
+------------------------------------------------------------
+['pca.pkl']
+CELL 26 - CODE
+------------------------------------------------------------
+joblib.dump(scaler, "scaler.pkl")
+CELL 26 - OUTPUT
+------------------------------------------------------------
+['scaler.pkl']
