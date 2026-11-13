@@ -1,13 +1,10 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Upload, File, X, CheckCircle2, AlertCircle, ArrowRight, Brain,
   Loader, Eye, Layers, ZoomIn, ZoomOut, Sliders, Activity, Calendar, ShieldCheck
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { mriService } from '../services/api';
-
-// Realistic coronal T1 brain scan fallback for medical visualizer
-const DEFAULT_MRI_SAMPLE = 'https://images.unsplash.com/photo-1559757175-5700dde675bc?auto=format&fit=crop&q=80&w=800';
 
 const MRIUpload = () => {
   const navigate = useNavigate();
@@ -20,11 +17,11 @@ const MRIUpload = () => {
   const [error, setError]           = useState('');
   const [historyScans, setHistory]  = useState([]);
   const [historyLoading, setHistLoad] = useState(false);
+  const [failedImageKey, setFailedImageKey] = useState('');
+  const previewUrls = useRef(new Set());
 
   // Neuroimaging Viewer Controls
   const [selectedScanIdx, setSelectedScanIdx] = useState(0);
-  const [showROI, setShowROI]                 = useState(true);
-  const [showHeatmap, setShowHeatmap]         = useState(false);
   const [invertContrast, setInvert]           = useState(false);
   const [zoomLevel, setZoom]                  = useState(1);
 
@@ -35,6 +32,10 @@ const MRIUpload = () => {
       loadHistory();
     }
   }, [activeTab]);
+
+  useEffect(() => () => {
+    previewUrls.current.forEach((url) => URL.revokeObjectURL(url));
+  }, []);
 
   const loadHistory = async () => {
     setHistLoad(true);
@@ -64,6 +65,7 @@ const MRIUpload = () => {
     valid.forEach((f) => {
       if (f.type.startsWith('image/')) {
         const url = URL.createObjectURL(f);
+        previewUrls.current.add(url);
         setPreviews((prev) => ({ ...prev, [f.name]: url }));
       }
     });
@@ -89,7 +91,10 @@ const MRIUpload = () => {
 
     try {
       const { data } = await mriService.upload(formData);
-      setResults(data.data || []);
+      setResults((data.data || []).map((result) => ({
+        ...result,
+        preview_url: filePreviews[result.file_name],
+      })));
       setSelectedScanIdx(0);
       setPhase('done');
       setFiles([]);
@@ -108,6 +113,13 @@ const MRIUpload = () => {
     ({ Low: '#10B981', Moderate: '#F59E0B', High: '#EF4444' })[risk] || '#4A90E2';
 
   const currentResult = results[selectedScanIdx] || (results.length > 0 ? results[0] : null);
+  const scanImageSource = currentResult?.preview_url || currentResult?.file_url;
+  const scanImageKey = currentResult
+    ? `${currentResult.scan_id || currentResult.id || currentResult.file_name}:${scanImageSource || ''}`
+    : '';
+  const isRasterImage = Boolean(currentResult?.preview_url) ||
+    /\.(png|jpe?g)(?:$|[?#])/i.test(currentResult?.file_name || currentResult?.file_url || '');
+  const imageUnavailable = Boolean(scanImageSource) && failedImageKey === scanImageKey;
 
   return (
     <div className="mri-upload-v2 container animate-fade-up">
@@ -250,34 +262,35 @@ const MRIUpload = () => {
                 <div className="viewer-panel card-modern">
                   <div className="viewer-toolbar">
                     <span className="toolbar-title">
-                      <Eye size={16} /> Coronal T1 MPRAGE Slice View
+                      <Eye size={16} /> Uploaded Scan Preview
                     </span>
                     <div className="toolbar-actions">
                       <button
-                        className={`btn-tool ${showROI ? 'active' : ''}`}
-                        onClick={() => setShowROI(!showROI)}
-                        title="Toggle Hippocampal & Ventricular ROI"
+                        className="btn-tool"
+                        disabled
+                        title="ROI overlays are unavailable because this analysis does not generate segmentation data."
                       >
                         <Layers size={15} /> ROI Map
                       </button>
                       <button
-                        className={`btn-tool ${showHeatmap ? 'active' : ''}`}
-                        onClick={() => setShowHeatmap(!showHeatmap)}
-                        title="Toggle Deep Learning Attention Heatmap"
+                        className="btn-tool"
+                        disabled
+                        title="Grad-CAM overlays are unavailable because this analysis does not generate a heatmap."
                       >
                         <Activity size={15} /> Grad-CAM Heatmap
                       </button>
                       <button
                         className={`btn-tool ${invertContrast ? 'active' : ''}`}
+                        disabled={!isRasterImage || imageUnavailable}
                         onClick={() => setInvert(!invertContrast)}
                         title="Invert Scan Contrast"
                       >
                         <Sliders size={15} /> Invert
                       </button>
-                      <button className="btn-tool" onClick={() => setZoom(Math.min(1.8, zoomLevel + 0.2))}>
+                      <button className="btn-tool" disabled={!isRasterImage || imageUnavailable} onClick={() => setZoom(Math.min(1.8, zoomLevel + 0.2))}>
                         <ZoomIn size={15} />
                       </button>
-                      <button className="btn-tool" onClick={() => setZoom(Math.max(0.8, zoomLevel - 0.2))}>
+                      <button className="btn-tool" disabled={!isRasterImage || imageUnavailable} onClick={() => setZoom(Math.max(0.8, zoomLevel - 0.2))}>
                         <ZoomOut size={15} />
                       </button>
                     </div>
@@ -285,51 +298,46 @@ const MRIUpload = () => {
 
                   {/* Scan Display Canvas / Image */}
                   <div className="scan-viewport" style={{ overflow: 'hidden' }}>
-                    <div
-                      className="scan-image-wrap"
-                      style={{
-                        transform: `scale(${zoomLevel})`,
-                        filter: invertContrast ? 'invert(1) contrast(1.2)' : 'none',
-                        transition: 'transform 0.2s ease, filter 0.2s ease'
-                      }}
-                    >
-                      <img
-                        src={
-                          currentResult.file_url ||
-                          filePreviews[currentResult.file_name] ||
-                          DEFAULT_MRI_SAMPLE
-                        }
-                        alt="Brain MRI Scan"
-                        className="mri-scan-img"
-                        onError={(e) => { e.target.src = DEFAULT_MRI_SAMPLE; }}
-                      />
-
-                      {/* Anatomical ROI Overlays */}
-                      {showROI && (
-                        <div className="roi-overlay">
-                          <div className="roi-hippocampus left" title="Left Hippocampus">
-                            <span>LH: {(currentResult.hippocampal_vol * 0.49).toFixed(0)} mm³</span>
-                          </div>
-                          <div className="roi-hippocampus right" title="Right Hippocampus">
-                            <span>RH: {(currentResult.hippocampal_vol * 0.51).toFixed(0)} mm³</span>
-                          </div>
-                          <div className="roi-ventricles" title="Lateral Ventricular Space">
-                            <span>Ventricular Atrophy Zone</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Grad-CAM Attention Heatmap Overlay */}
-                      {showHeatmap && (
-                        <div className="gradcam-overlay" title="Neural Network Activation Heatmap" />
-                      )}
-                    </div>
+                    {scanImageSource && isRasterImage && !imageUnavailable ? (
+                      <div
+                        className="scan-image-wrap"
+                        style={{
+                          transform: `scale(${zoomLevel})`,
+                          filter: invertContrast ? 'invert(1) contrast(1.2)' : 'none',
+                          transition: 'transform 0.2s ease, filter 0.2s ease'
+                        }}
+                      >
+                        <img
+                          src={scanImageSource}
+                          alt={`Uploaded MRI scan: ${currentResult.file_name}`}
+                          className="mri-scan-img"
+                          onError={() => setFailedImageKey(scanImageKey)}
+                        />
+                      </div>
+                    ) : (
+                      <div className="scan-unavailable">
+                        <Eye size={28} />
+                        <strong>
+                          {isRasterImage
+                            ? 'The uploaded scan preview could not be loaded.'
+                            : 'This scan format cannot be previewed in the browser.'}
+                        </strong>
+                        <span>
+                          {isRasterImage
+                            ? 'The original scan is preserved; no substitute image is shown.'
+                            : 'Export the scan as PNG or JPEG to use the image viewer controls.'}
+                        </span>
+                        {currentResult.file_url && (
+                          <a href={currentResult.file_url} target="_blank" rel="noreferrer">
+                            Open original scan
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="viewport-legend">
-                    <span className="legend-item"><span className="legend-dot green" /> Bilateral Hippocampus</span>
-                    <span className="legend-item"><span className="legend-dot blue" /> Lateral Ventricles</span>
-                    <span className="legend-item"><span className="legend-dot red" /> High Attention Gradient</span>
+                    Zoom and contrast controls apply to the uploaded image. ROI and Grad-CAM overlays are not generated.
                   </div>
                 </div>
 
@@ -562,28 +570,15 @@ const MRIUpload = () => {
         .toolbar-actions { display: flex; gap: 6px; }
         .btn-tool { display: flex; align-items: center; gap: 5px; background: #1e293b; border: 1px solid #475569; color: #cbd5e1; padding: 6px 10px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
         .btn-tool.active { background: #10B981; color: white; border-color: #10B981; }
+        .btn-tool:disabled { opacity: 0.45; cursor: not-allowed; }
 
         .scan-viewport { background: #000000; border-radius: 14px; height: 380px; display: flex; align-items: center; justify-content: center; position: relative; }
         .scan-image-wrap { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
         .mri-scan-img { max-width: 100%; max-height: 100%; object-fit: contain; }
-
-        /* ROI Overlays */
-        .roi-overlay { position: absolute; inset: 0; pointer-events: none; }
-        .roi-hippocampus { position: absolute; border: 2px solid #10b981; background: rgba(16,185,129,0.25); border-radius: 12px; }
-        .roi-hippocampus.left { top: 46%; left: 36%; width: 40px; height: 32px; }
-        .roi-hippocampus.right { top: 46%; right: 36%; width: 40px; height: 32px; }
-        .roi-hippocampus span { position: absolute; bottom: -18px; left: -10px; font-size: 0.65rem; color: #86efac; font-weight: 800; white-space: nowrap; }
-        .roi-ventricles { position: absolute; top: 38%; left: 45%; width: 38px; height: 42px; border: 2px dashed #06b6d4; background: rgba(6,182,212,0.18); border-radius: 8px; }
-        .roi-ventricles span { position: absolute; top: -16px; left: -20px; font-size: 0.65rem; color: #67e8f9; font-weight: 800; white-space: nowrap; }
-
-        .gradcam-overlay { position: absolute; inset: 0; background: radial-gradient(circle at 48% 48%, rgba(239,68,68,0.45) 0%, rgba(245,158,11,0.3) 25%, transparent 60%); pointer-events: none; }
-
-        .viewport-legend { display: flex; gap: 16px; font-size: 0.78rem; color: #94a3b8; justify-content: center; }
-        .legend-item { display: flex; align-items: center; gap: 6px; }
-        .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
-        .legend-dot.green { background: #10b981; }
-        .legend-dot.blue { background: #06b6d4; }
-        .legend-dot.red { background: #ef4444; }
+        .scan-unavailable { max-width: 80%; padding: 24px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; color: #cbd5e1; }
+        .scan-unavailable strong { color: white; }
+        .scan-unavailable a { color: #6ee7b7; font-weight: 700; }
+        .viewport-legend { font-size: 0.78rem; color: #94a3b8; text-align: center; }
 
         /* Metrics Panel */
         .metrics-panel { padding: 28px; display: flex; flex-direction: column; gap: 20px; }
