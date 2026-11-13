@@ -2179,7 +2179,8 @@
       "image_url": "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=400&h=400",
       "bio": "Associate Professor of Neurology specializing in early Alzheimer's detection, multimodal biomarkers, and structural MRI evaluation.",
       "is_active": true,
-      "created_at": "2026-01-01T00:00:00.000Z"
+      "created_at": "2026-01-01T00:00:00.000Z",
+      "google_meet_url": "https://meet.google.com/neu-lens-doc"
     }
   ],
   "consultations": [
@@ -2191,7 +2192,7 @@
       "doctor_id": "11111111-1111-4111-8111-111111111111",
       "scheduled_at": "2026-09-27T13:00:00.000Z",
       "notes": "Corona",
-      "meeting_url": "https://meet.jit.si/NeuroLens-DrSarahWilson-1790427387899",
+      "meeting_url": "https://meet.google.com/neu-lens-doc",
       "status": "upcoming"
     },
     {
@@ -2202,7 +2203,7 @@
       "doctor_id": "11111111-1111-4111-8111-111111111111",
       "scheduled_at": "2026-10-07T05:45:00.000Z",
       "notes": null,
-      "meeting_url": "https://meet.jit.si/NeuroLens-DrSarahWilsonMDPhD-1791346401794",
+      "meeting_url": "https://meet.google.com/neu-lens-doc",
       "status": "upcoming"
     },
     {
@@ -2213,7 +2214,7 @@
       "doctor_id": "11111111-1111-4111-8111-111111111111",
       "scheduled_at": "2026-10-22T10:26:00.000Z",
       "notes": null,
-      "meeting_url": "https://meet.jit.si/NeuroLens-DrSarahWilsonMDPhD-1791368818972",
+      "meeting_url": "https://meet.google.com/neu-lens-doc",
       "status": "upcoming"
     }
   ],

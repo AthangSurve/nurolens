@@ -78,9 +78,8 @@ exports.bookConsultation = async (req, res) => {
       });
     }
 
-    // Generate live teleconsultation room URL via Jitsi Meet
-    const roomClean = doctor.full_name.replace(/[^a-zA-Z0-9]/g, '');
-    const meeting_url = `https://meet.jit.si/NeuroLens-${roomClean}-${Date.now()}`;
+    // Generate live teleconsultation room URL via Google Meet
+    const meeting_url = doctor.google_meet_url || process.env.DEFAULT_GOOGLE_MEET_URL || 'https://meet.google.com/neu-lens-doc';
 
     const { data: consultation, error } = await supabase
       .from('consultations')
@@ -137,11 +136,12 @@ exports.getConsultations = async (req, res) => {
       return res.status(500).json({ success: false, message: 'Failed to fetch consultations.' });
     }
 
-    // Sanitize any legacy fictional URLs into active Jitsi rooms
+    // Sanitize any legacy or Jitsi URLs into active Google Meet room
+    const defaultMeetUrl = process.env.DEFAULT_GOOGLE_MEET_URL || 'https://meet.google.com/neu-lens-doc';
     const sanitized = (consultations || []).map((c) => {
       let mUrl = c.meeting_url;
-      if (mUrl && mUrl.includes('meet.cognifusion.app')) {
-        mUrl = mUrl.replace('https://meet.cognifusion.app/session/', 'https://meet.jit.si/NeuroLens-Session-');
+      if (!mUrl || mUrl.includes('meet.cognifusion.app') || mUrl.includes('meet.jit.si')) {
+        mUrl = c.doctors?.google_meet_url || defaultMeetUrl;
       }
       return { ...c, meeting_url: mUrl };
     });
@@ -149,6 +149,48 @@ exports.getConsultations = async (req, res) => {
     res.status(200).json({ success: true, data: sanitized });
   } catch (err) {
     console.error('[Get Consultations Error]', err);
+    res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @route   PATCH /api/doctors/consultations/:id/meeting-url
+// @desc    Update consultation Google Meet URL (synced between doctor & patient)
+// @access  Protected
+// ─────────────────────────────────────────────────────────────────────────────
+exports.updateMeetingUrl = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let { meeting_url } = req.body;
+
+    if (!meeting_url || !meeting_url.trim()) {
+      return res.status(400).json({ success: false, message: 'Meeting URL is required.' });
+    }
+
+    meeting_url = meeting_url.trim();
+    if (!meeting_url.startsWith('http://') && !meeting_url.startsWith('https://')) {
+      meeting_url = `https://${meeting_url}`;
+    }
+
+    const { data: updated, error } = await supabase
+      .from('consultations')
+      .update({ meeting_url, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[Update Meeting URL DB Error]', error);
+      return res.status(500).json({ success: false, message: 'Failed to update meeting URL.' });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Google Meet URL updated and synced successfully.',
+      data: updated,
+    });
+  } catch (err) {
+    console.error('[Update Meeting URL Error]', err);
     res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };

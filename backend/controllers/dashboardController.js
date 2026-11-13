@@ -135,7 +135,9 @@ exports.getDashboardData = async (req, res) => {
         recent_activity: recentActivity,
         upcoming_consultation: upcomingConsultations?.[0] ? {
           ...upcomingConsultations[0],
-          meeting_url: (upcomingConsultations[0].meeting_url || '').replace('https://meet.cognifusion.app/session/', 'https://meet.jit.si/NeuroLens-Session-')
+          meeting_url: (upcomingConsultations[0].meeting_url && !upcomingConsultations[0].meeting_url.includes('meet.cognifusion.app') && !upcomingConsultations[0].meeting_url.includes('meet.jit.si'))
+            ? upcomingConsultations[0].meeting_url
+            : (process.env.DEFAULT_GOOGLE_MEET_URL || 'https://meet.google.com/neu-lens-doc')
         } : null,
         tests_completed: (testResults?.length || 0) + (speechResults?.length || 0) + (mriResults?.length || 0),
       },

@@ -18,6 +18,7 @@ const SEED_DOCTORS = [
     availability: 'Available Today',
     image_url: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=400&h=400',
     bio: 'Associate Professor of Neurology specializing in early Alzheimer\'s detection, multimodal biomarkers, and structural MRI evaluation.',
+    google_meet_url: 'https://meet.google.com/neu-lens-doc',
     is_active: true,
     created_at: new Date('2026-01-01').toISOString(),
   },

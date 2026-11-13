@@ -55,6 +55,7 @@ export const doctorService = {
   getConsultations:     ()       => api.get('/doctors/consultations'),
   cancelConsultation:   (id)     => api.patch(`/doctors/consultations/${id}/cancel`),
   completeConsultation: (id)     => api.patch(`/doctors/consultations/${id}/complete`),
+  updateMeetingUrl:     (id, meeting_url) => api.patch(`/doctors/consultations/${id}/meeting-url`, { meeting_url }),
 };
 
 // ─── Doctor Portal ───────────────────────────────────────────
@@ -65,6 +66,7 @@ export const doctorPortalService = {
   getConsultations: ()               => api.get('/doctor-portal/consultations'),
   prescribeMRI:     (data)           => api.post('/doctor-portal/prescriptions', data),
   addNote:          (data)           => api.post('/doctor-portal/notes', data),
+  updateMeetingUrl: (id, meeting_url) => api.patch(`/doctors/consultations/${id}/meeting-url`, { meeting_url }),
 };
 
 // ─── ML / Cognitive Risk Prediction ──────────────────────────

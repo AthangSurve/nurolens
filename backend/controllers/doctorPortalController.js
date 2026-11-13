@@ -236,8 +236,13 @@ exports.getDoctorConsultations = async (req, res) => {
           .select('id, full_name, email, patient_id, date_of_birth, gender')
           .eq('id', c.user_id)
           .single();
+        let mUrl = c.meeting_url;
+        if (!mUrl || mUrl.includes('meet.jit.si') || mUrl.includes('meet.cognifusion.app')) {
+          mUrl = process.env.DEFAULT_GOOGLE_MEET_URL || 'https://meet.google.com/neu-lens-doc';
+        }
         return {
           ...c,
+          meeting_url: mUrl,
           patient: patient || { full_name: 'Patient', patient_id: 'N/A' },
         };
       })
