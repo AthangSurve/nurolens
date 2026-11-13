@@ -51,6 +51,19 @@
       "gender": "Female",
       "educational_qualification": "Doctoral Degree",
       "role": "doctor"
+    },
+    {
+      "id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "created_at": "2026-11-13T13:20:42.713Z",
+      "updated_at": "2026-11-13T13:20:42.713Z",
+      "full_name": "Asmit Saw",
+      "email": "asmit01052005@gmail.com",
+      "password_hash": "$2a$12$7v9h0dCLGeWrkw27sHcTGOIsdSV47eF8DGhxJRXa6iEWs0A.9o9kO",
+      "patient_id": "CF-2026-5984",
+      "date_of_birth": "2005-05-01",
+      "gender": "Male",
+      "educational_qualification": "Bachelors Degree",
+      "role": "patient"
     }
   ],
   "test_results": [
@@ -981,6 +994,211 @@
       "gender_at_test": "Male",
       "norm_percentile": 0,
       "adjusted_risk": "High"
+    },
+    {
+      "id": "6676a3de-6b3e-4bf5-a95e-0104fe80d9f2",
+      "created_at": "2026-11-13T13:22:27.576Z",
+      "updated_at": "2026-11-13T13:22:27.576Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "test_type": "MMSE",
+      "score": 7,
+      "max_score": 30,
+      "risk_level": "High",
+      "answers": {
+        "1": "2026",
+        "2": "Summer",
+        "3": "January",
+        "4": "Saturday",
+        "5": "12th",
+        "6": "Canada",
+        "7": "Maharashtra",
+        "8": "Nashik",
+        "9": "Nashik Rural",
+        "10": "John Doe",
+        "11": "Mango",
+        "12": "Desk",
+        "13": "Bicycle",
+        "14": "94",
+        "15": "85",
+        "16": "78",
+        "17": "73",
+        "18": "DOWRL",
+        "19": "Apple",
+        "20": "Chair",
+        "21": "Train",
+        "22": "Scissors",
+        "23": "Pen",
+        "24": "She go to school",
+        "25": "Lock door",
+        "26": "Plate",
+        "27": "Yellow",
+        "28": "Square",
+        "29": "Circle",
+        "30": "Two overlapping pentagons"
+      },
+      "section_scores": {
+        "Orientation to Time": {
+          "correct": 1,
+          "total": 5
+        },
+        "Orientation to Place": {
+          "correct": 1,
+          "total": 5
+        },
+        "Registration (Memory Encoding)": {
+          "correct": 0,
+          "total": 3
+        },
+        "Attention & Calculation": {
+          "correct": 0,
+          "total": 5
+        },
+        "Recall (Memory Sharpness)": {
+          "correct": 1,
+          "total": 3
+        },
+        "Language": {
+          "correct": 1,
+          "total": 6
+        },
+        "Visuospatial": {
+          "correct": 3,
+          "total": 3
+        }
+      },
+      "duration_secs": 78,
+      "adjusted_score": 7,
+      "education_years": 16,
+      "age_at_test": 21,
+      "gender_at_test": "Male",
+      "norm_percentile": 0,
+      "adjusted_risk": "High"
+    },
+    {
+      "id": "3c5ddd87-0831-41de-a629-8ac506c13825",
+      "created_at": "2026-11-13T13:24:24.169Z",
+      "updated_at": "2026-11-13T13:24:24.169Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "test_type": "MoCA",
+      "score": 6,
+      "max_score": 30,
+      "risk_level": "High",
+      "answers": {
+        "1": "2",
+        "2": "Square",
+        "3": "11:10",
+        "4": "Blue",
+        "5": "4",
+        "6": "Tiger",
+        "7": "Cow",
+        "8": "Camel",
+        "9": "Face",
+        "10": "Silk",
+        "11": "Library",
+        "12": "Rose",
+        "13": "Red",
+        "14": "24",
+        "15": "25",
+        "16": "12",
+        "17": "17",
+        "18": "19",
+        "19": "4",
+        "20": "She going school",
+        "21": "Cool",
+        "22": "Table",
+        "23": "Both are foods",
+        "24": "Both are furniture",
+        "25": "Bottle",
+        "26": "Silk",
+        "27": "Church",
+        "28": "Tulip",
+        "29": "Green",
+        "30": "2027"
+      },
+      "section_scores": {
+        "Visuospatial / Executive": {
+          "correct": 1,
+          "total": 5
+        },
+        "Naming": {
+          "correct": 1,
+          "total": 3
+        },
+        "Memory Registration": {
+          "correct": 2,
+          "total": 5
+        },
+        "Attention": {
+          "correct": 1,
+          "total": 6
+        },
+        "Language": {
+          "correct": 0,
+          "total": 3
+        },
+        "Abstraction": {
+          "correct": 0,
+          "total": 2
+        },
+        "Delayed Recall (Memory Sharpness)": {
+          "correct": 1,
+          "total": 5
+        },
+        "Orientation": {
+          "correct": 0,
+          "total": 1
+        }
+      },
+      "duration_secs": 64,
+      "adjusted_score": 6,
+      "education_years": 16,
+      "age_at_test": 21,
+      "gender_at_test": "Male",
+      "norm_percentile": 0,
+      "adjusted_risk": "Low"
+    },
+    {
+      "id": "16df7d14-6dfe-4018-b2ea-a86c0c11e085",
+      "created_at": "2026-11-13T13:25:01.533Z",
+      "updated_at": "2026-11-13T13:25:01.533Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "test_type": "CLOCK",
+      "score": 5,
+      "max_score": 5,
+      "risk_level": "Low",
+      "answers": {
+        "target_time": "9:30",
+        "suggestions": [
+          "Continue regular brain stimulation through crosswords, mental math, and spatial puzzles.",
+          "Maintain cardiovascular exercise, which strongly supports executive visuospatial circuitry."
+        ]
+      },
+      "section_scores": {},
+      "duration_secs": 29
+    },
+    {
+      "id": "b0c6865b-03bd-4567-933c-5fd18dfa9d3a",
+      "created_at": "2026-11-13T13:25:44.975Z",
+      "updated_at": "2026-11-13T13:25:44.975Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "test_type": "TRAIL",
+      "score": 95,
+      "max_score": 100,
+      "risk_level": "Low",
+      "answers": {
+        "time_seconds": 9,
+        "errors": 0,
+        "classification": "Optimal",
+        "suggestions": [
+          "Challenge yourself next with Hard Mode (Trail B alternating letters and numbers) to exercise executive switching.",
+          "Aerobic exercise 3x/week significantly improves motor coordination and visual processing speed."
+        ]
+      },
+      "section_scores": {
+        "completion_time": 9,
+        "errors": 0
+      },
+      "duration_secs": 9
     }
   ],
   "speech_analyses": [
@@ -1256,6 +1474,32 @@
       "neural_latency": 16.6,
       "risk_level": "High",
       "analysis_notes": "Acoustic biomarkers indicate reduced vocal stability consistent with cognitive decline."
+    },
+    {
+      "id": "fecc091e-148c-4e1c-b8d5-b4d2850a6fa6",
+      "created_at": "2026-11-13T13:31:17.478Z",
+      "updated_at": "2026-11-13T13:31:17.478Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "audio_url": "/uploads/85d5dd82-b632-4357-952b-2b2441e3ffb9_1794576464454_TerryRiley_3.wav",
+      "duration_secs": 0,
+      "stability_pct": 97.2,
+      "jitter_f0": 0.22,
+      "neural_latency": 12.2,
+      "risk_level": "Low",
+      "analysis_notes": "Vocal biomarkers demonstrate high speech stability within normal range for typical cognitive function."
+    },
+    {
+      "id": "37096cc2-de77-4a64-99e9-a3ad93e92ff6",
+      "created_at": "2026-11-13T13:31:17.514Z",
+      "updated_at": "2026-11-13T13:31:17.514Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "audio_url": "/uploads/85d5dd82-b632-4357-952b-2b2441e3ffb9_1794576616244_TonyParkes_10.wav",
+      "duration_secs": 0,
+      "stability_pct": 4.7,
+      "jitter_f0": 0.12,
+      "neural_latency": 12.7,
+      "risk_level": "High",
+      "analysis_notes": "Acoustic biomarkers indicate reduced vocal stability consistent with cognitive decline."
     }
   ],
   "mri_scans": [
@@ -1514,6 +1758,22 @@
       "risk_level": "Low",
       "analysis_notes": "Diagnosis: Non-Demented | Confidence: 98.9% | Estimated Atrophy: 9.9%",
       "analyzed_at": "2026-10-07T10:23:56.691Z"
+    },
+    {
+      "id": "84cd271c-5858-4368-918e-e3a00929a06e",
+      "created_at": "2026-11-13T13:31:49.359Z",
+      "updated_at": "2026-11-13T13:31:49.359Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "file_name": "images.jpg",
+      "file_url": "http://localhost:5000/uploads/mri/1794576694906-images.jpg",
+      "file_size_bytes": 26075,
+      "file_format": "JPEG",
+      "status": "verified",
+      "hippocampal_vol": 2031.5,
+      "atrophy_pct": 24.2,
+      "risk_level": "High",
+      "analysis_notes": "Diagnosis: Moderate Demented | Confidence: 84.2% | Estimated Atrophy: 24.2%",
+      "analyzed_at": "2026-11-13T13:31:49.358Z"
     }
   ],
   "reports": [
@@ -2163,6 +2423,90 @@
       "mri_scan_id": "97b83c2a-0744-4943-ba7a-1937499a09e5",
       "risk_level": "Low",
       "summary": "MRI scan analyzed. Risk: Low. Diagnosis: Non-Demented | Confidence: 98.9% | Estimated Atrophy: 9.9%"
+    },
+    {
+      "id": "6f773236-38df-4729-8782-d6e1b0d28b4d",
+      "created_at": "2026-11-13T13:22:27.584Z",
+      "updated_at": "2026-11-13T13:22:27.584Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "report_id": "REP-5636",
+      "title": "MMSE Assessment Summary",
+      "report_type": "Clinical Test",
+      "test_result_id": "6676a3de-6b3e-4bf5-a95e-0104fe80d9f2",
+      "risk_level": "High",
+      "summary": "MMSE Score: 7/30. Adjusted Score: 7. Normative Percentile: 0th. Risk: High."
+    },
+    {
+      "id": "db2f1dea-6668-4120-850d-6d8f7062c1fc",
+      "created_at": "2026-11-13T13:24:24.182Z",
+      "updated_at": "2026-11-13T13:24:24.182Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "report_id": "REP-7442",
+      "title": "MoCA Assessment Summary",
+      "report_type": "Clinical Test",
+      "test_result_id": "3c5ddd87-0831-41de-a629-8ac506c13825",
+      "risk_level": "Low",
+      "summary": "MoCA Score: 6/30. Adjusted Score: 6. Normative Percentile: 0th. Risk: Low. ML Risk Confidence: 6%."
+    },
+    {
+      "id": "d245bded-eff3-4449-a0e7-c59fa851a11b",
+      "created_at": "2026-11-13T13:25:01.538Z",
+      "updated_at": "2026-11-13T13:25:01.538Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "report_id": "REP-5538",
+      "title": "Clock Drawing Assessment Summary",
+      "report_type": "Clinical Test",
+      "test_result_id": "16df7d14-6dfe-4018-b2ea-a86c0c11e085",
+      "risk_level": "Low",
+      "summary": "Clock Drawing Test (9:30). Score: 5/5 (100%). Risk Level: Low. Visuospatial & Executive function: Intact."
+    },
+    {
+      "id": "3de663bc-04d1-4085-9499-77bfa72d7999",
+      "created_at": "2026-11-13T13:25:44.980Z",
+      "updated_at": "2026-11-13T13:25:44.980Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "report_id": "REP-7088",
+      "title": "Trail Making Executive Function Report",
+      "report_type": "Clinical Test",
+      "test_result_id": "b0c6865b-03bd-4567-933c-5fd18dfa9d3a",
+      "risk_level": "Low",
+      "summary": "Trail Making Test (Part A). Completion Time: 9s. Errors: 0. Classification: Optimal. Executive Attention & Processing Speed: Low."
+    },
+    {
+      "id": "3765ba78-664c-49ad-8aaf-5b4893a71e92",
+      "created_at": "2026-11-13T13:31:17.481Z",
+      "updated_at": "2026-11-13T13:31:17.481Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "report_id": "REP-1005",
+      "title": "Vocal Biomarker Signature",
+      "report_type": "Speech Analysis",
+      "speech_id": "fecc091e-148c-4e1c-b8d5-b4d2850a6fa6",
+      "risk_level": "Low",
+      "summary": "Speech stability: 97.2%. Jitter: 0.22%. Risk: Low."
+    },
+    {
+      "id": "83592af6-c99d-48ad-a7ac-955281e95f89",
+      "created_at": "2026-11-13T13:31:17.518Z",
+      "updated_at": "2026-11-13T13:31:17.518Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "report_id": "REP-2998",
+      "title": "Vocal Biomarker Signature",
+      "report_type": "Speech Analysis",
+      "speech_id": "37096cc2-de77-4a64-99e9-a3ad93e92ff6",
+      "risk_level": "High",
+      "summary": "Speech stability: 4.7%. Jitter: 0.12%. Risk: High."
+    },
+    {
+      "id": "83dd9660-b4b5-4618-a716-cad96b35ab42",
+      "created_at": "2026-11-13T13:31:49.366Z",
+      "updated_at": "2026-11-13T13:31:49.366Z",
+      "user_id": "85d5dd82-b632-4357-952b-2b2441e3ffb9",
+      "report_id": "REP-8183",
+      "title": "Hippocampal Volumetric Report",
+      "report_type": "MRI Insight",
+      "mri_scan_id": "84cd271c-5858-4368-918e-e3a00929a06e",
+      "risk_level": "High",
+      "summary": "MRI scan analyzed. Risk: High. Diagnosis: Moderate Demented | Confidence: 84.2% | Estimated Atrophy: 24.2%"
     }
   ],
   "doctors": [
