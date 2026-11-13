@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
  * Wraps protected routes — redirects to /login if not authenticated.
  * Shows nothing while the auth state is being rehydrated from localStorage.
  */
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, role }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
@@ -30,6 +30,10 @@ const ProtectedRoute = ({ children }) => {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (role && user.role !== role) {
+    return <Navigate to={user.role === 'doctor' ? '/doctor-portal' : '/dashboard'} replace />;
   }
 
   return children;

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { reportService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { escapeHtml, printDocument } from '../utils/printDocument';
 
 // ── PDF Generator ─────────────────────────────────────────────────────────────
 const generatePDF = (report, user) => {
@@ -75,6 +76,47 @@ const generatePDF = (report, user) => {
   win.document.write(doc);
   win.document.close();
   win.onload = () => { win.focus(); win.print(); };
+};
+
+const generateCombinedPDF = (summary, user) => {
+  const scores = summary?.scores || {};
+  const results = [
+    ['MMSE', scores.MMSE, (result) => `${result.score} / ${result.max_score}`, (result) => result.adjusted_risk || result.risk_level],
+    ['MoCA', scores.MoCA, (result) => `${result.score} / ${result.max_score}`, (result) => result.adjusted_risk || result.risk_level],
+    ['Clock Drawing', scores.Clock, (result) => `${result.score} / ${result.max_score}`, (result) => result.risk_level],
+    ['Trail Making', scores.Trail, (result) => `${result.score} / ${result.max_score}`, (result) => result.risk_level],
+    ['Speech', scores.speech, (result) => `${result.stability_pct}% stability`, (result) => result.risk_level],
+    ['MRI', scores.mri, (result) => `${result.atrophy_pct}% estimated atrophy`, (result) => result.risk_level],
+  ].filter(([, result]) => result);
+
+  const rows = results.map(([label, result, score, risk]) => `
+    <tr>
+      <td>${escapeHtml(label)}</td>
+      <td>${escapeHtml(score(result))}</td>
+      <td>${escapeHtml(risk(result) || 'Not recorded')}</td>
+      <td>${escapeHtml(result.date ? new Date(result.date).toLocaleDateString() : '—')}</td>
+    </tr>`).join('');
+  const patientName = escapeHtml(user?.full_name || 'Patient');
+  const patientId = escapeHtml(user?.patient_id || 'N/A');
+  const content = `
+    <h1>NeuroLens Combined Clinical Report</h1>
+    <div class="muted">Generated ${escapeHtml(new Date().toLocaleString())}</div>
+    <div class="section">
+      <strong>Patient:</strong> ${patientName}<br>
+      <strong>Patient ID:</strong> ${patientId}<br>
+      <strong>Composite risk:</strong> ${escapeHtml(summary?.overall_risk || 'Not available')}
+    </div>
+    <div class="section">
+      <h2>Latest result for each assessment</h2>
+      <p class="muted">This report includes only the latest available result for each assessment. MRI results appear after physician approval.</p>
+      <table>
+        <thead><tr><th>Assessment</th><th>Result</th><th>Risk</th><th>Date</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="4">No assessment results recorded.</td></tr>'}</tbody>
+      </table>
+    </div>
+    <div class="muted">For screening and monitoring purposes. This report is not a standalone clinical diagnosis.</div>`;
+
+  printDocument('NeuroLens Combined Clinical Report', content);
 };
 
 // ── Report Detail Modal ────────────────────────────────────────────────────────
@@ -178,13 +220,22 @@ const Reports = () => {
             <h1>Clinical Health Records & Test History</h1>
             <p>Comprehensive longitudinal assessment results, ML diagnostic indices, and physician consultation notes.</p>
           </div>
-          <div className="tab-pill-switch">
-            <button className={`tab-pill ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
-              <FileText size={16} /> Clinical Reports ({allReports.length})
+          <div className="reports-header-actions">
+            <button
+              className="combined-report-btn"
+              onClick={() => generateCombinedPDF(summary, user)}
+              disabled={!summary}
+            >
+              <Download size={16} /> Print / Save Combined Report
             </button>
-            <button className={`tab-pill ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
-              <Clock size={16} /> Assessment History ({testHistory.length})
-            </button>
+            <div className="tab-pill-switch">
+              <button className={`tab-pill ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
+                <FileText size={16} /> Clinical Reports ({allReports.length})
+              </button>
+              <button className={`tab-pill ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
+                <Clock size={16} /> Assessment History ({testHistory.length})
+              </button>
+            </div>
           </div>
         </div>
 
@@ -383,6 +434,9 @@ const Reports = () => {
       <style>{`
         .reports-modern { padding: 40px 0; }
         .reports-page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; gap: 20px; flex-wrap: wrap; }
+        .reports-header-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+        .combined-report-btn { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 0; border-radius: 10px; background: var(--primary); color: white; font-weight: 700; cursor: pointer; }
+        .combined-report-btn:disabled { opacity: 0.55; cursor: not-allowed; }
         .reports-page-header h1 { font-size: 2rem; margin-bottom: 6px; }
         .reports-page-header p { color: var(--text-sub); margin: 0; font-size: 0.95rem; }
         .tab-pill-switch { display: flex; background: #e2e8f0; padding: 4px; border-radius: 12px; gap: 4px; }

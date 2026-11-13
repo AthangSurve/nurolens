@@ -68,6 +68,10 @@ CREATE TABLE IF NOT EXISTS mri_scans (
   file_size_bytes   BIGINT,
   file_format       TEXT,              -- DICOM, NIfTI, PNG, NRRD
   status            TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'verified', 'failed')),
+  review_status     TEXT NOT NULL DEFAULT 'pending' CHECK (review_status IN ('pending', 'approved', 'needs_follow_up')),
+  reviewed_by       UUID REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at       TIMESTAMPTZ,
+  review_notes      TEXT,
   hippocampal_vol   REAL,              -- analysis results (mm³)
   atrophy_pct       REAL,
   risk_level        TEXT CHECK (risk_level IN ('Low', 'Moderate', 'High')),
@@ -82,6 +86,7 @@ CREATE TABLE IF NOT EXISTS mri_scans (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS doctors (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id      UUID UNIQUE REFERENCES users(id) ON DELETE SET NULL,
   full_name    TEXT NOT NULL,
   specialty    TEXT NOT NULL,
   rating       NUMERIC(2,1),

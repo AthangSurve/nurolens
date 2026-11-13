@@ -2,11 +2,29 @@ import React, { useEffect, useState } from 'react';
 import {
   TrendingUp, Clock, Brain, Mic, Upload, FileText, ArrowRight,
   Activity, AlertCircle, ChevronRight, CheckCircle2, Cpu,
-  Compass, GitCommit, Video, UserCheck, Stethoscope, Sparkles
+  Compass, GitCommit, Video, UserCheck, Stethoscope, Sparkles, Download
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { dashboardService } from '../services/api';
+import { escapeHtml, printDocument } from '../utils/printDocument';
+
+const generatePrescriptionPDF = (prescription, user) => {
+  const content = `
+    <h1>MRI Prescription</h1>
+    <div class="muted">NeuroLens · Prescribed ${escapeHtml(new Date(prescription.prescribed_at).toLocaleString())}</div>
+    <div class="section">
+      <strong>Patient:</strong> ${escapeHtml(user?.full_name || 'Patient')}<br>
+      <strong>Patient ID:</strong> ${escapeHtml(user?.patient_id || 'N/A')}<br>
+      <strong>Prescribing doctor:</strong> ${escapeHtml(prescription.doctor_name || 'Your doctor')}
+    </div>
+    <div class="section">
+      <h2>Instructions</h2>
+      <p class="notes">${escapeHtml(prescription.notes || 'Please arrange the MRI scan and upload the scan file to NeuroLens for analysis.')}</p>
+    </div>
+    <div class="muted">Bring this prescription to your imaging provider. Upload the resulting scan through the MRI Upload page.</div>`;
+  printDocument('NeuroLens MRI Prescription', content);
+};
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -47,17 +65,21 @@ const Dashboard = () => {
   const moca  = latestScores?.MoCA;
   const clock = latestScores?.Clock;
   const trail = latestScores?.Trail;
-  const speech = latestScores?.speech;
-  const mri = latestScores?.mri;
   const doctorNotes = data?.doctor_notes || [];
   const latestDoctorNote = doctorNotes[0];
   const trendData = data?.trend_data || [];
+  const mriPrescriptions = data?.mri_prescriptions || [];
 
   return (
     <div className="dashboard-v2 animate-fade-up">
       <div className="container dashboard-grid">
         {/* Main Content Area */}
         <div className="main-panel">
+          {error && (
+            <div className="alert-block alert-danger mb-4">
+              <AlertCircle size={18} /> {error}
+            </div>
+          )}
           {/* Welcome Card */}
           <section className="welcome-banner">
             <div className="welcome-text">
@@ -150,16 +172,69 @@ const Dashboard = () => {
                 <h3>Longitudinal Stability Trajectory</h3>
               </div>
               <div className="mock-graph">
-                <div className="graph-bars">
-                  {(trendData.length > 0 ? trendData : [72, 80, 84, 88, 92, 90, 95].map((v, i) => ({ percent: v, label: `Session ${i+1}` }))).map((d, i) => (
+                {trendData.length > 0 ? (
+                  <div className="graph-bars">
+                    {trendData.map((d, i) => (
                     <div key={i} className="bar-col">
-                      <div className="bar-fill" style={{ height: `${d.percent || d}%`, animationDelay: `${i * 0.1}s` }}></div>
-                      <span className="bar-label">{d.label || `S${i+1}`}</span>
+                      <div className="bar-fill" style={{ height: `${Math.min(100, Math.max(0, d.percent || 0))}%`, animationDelay: `${i * 0.1}s` }}></div>
+                      <span className="bar-label" title={`${d.label}: ${d.score}/${d.max}`}>
+                        {d.label}<br />{new Date(d.date).toLocaleDateString()}
+                      </span>
                     </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="graph-empty">Complete an assessment to see your session history here.</div>
+                )}
               </div>
             </div>
+          </section>
+
+          <section className="mri-prescriptions-section">
+            <div className="section-header-compact">
+              <div>
+                <h2>MRI Prescriptions from Your Doctor</h2>
+                <span className="sub-caption">Prescriptions and scan-review status</span>
+              </div>
+            </div>
+            {mriPrescriptions.length === 0 ? (
+              <div className="card-modern prescription-empty">
+                No MRI prescriptions yet. Any prescription from your doctor will appear here.
+              </div>
+            ) : (
+              <div className="prescription-list">
+                {mriPrescriptions.map((prescription) => {
+                  const scan = prescription.scan;
+                  const reviewLabel = scan?.review_status === 'approved'
+                    ? 'Doctor approved'
+                    : scan?.review_status === 'needs_follow_up'
+                    ? 'Follow-up needed'
+                    : scan
+                    ? 'Awaiting doctor review'
+                    : 'MRI not uploaded yet';
+                  return (
+                    <div className="card-modern prescription-card" key={prescription.id}>
+                      <div className="prescription-info">
+                        <strong>{prescription.doctor_name} · {new Date(prescription.prescribed_at).toLocaleDateString()}</strong>
+                        <span>{reviewLabel}</span>
+                        {prescription.notes && <p>{prescription.notes}</p>}
+                        {scan?.review_notes && <p className="review-note">Doctor's review: {scan.review_notes}</p>}
+                      </div>
+                      <div className="prescription-actions">
+                        <button className="prescription-pdf-btn" onClick={() => generatePrescriptionPDF(prescription, user)}>
+                          <Download size={15} /> Prescription PDF
+                        </button>
+                        {(!scan || scan.review_status === 'needs_follow_up') && prescription.status === 'pending' && (
+                          <button className="prescription-upload-btn" onClick={() => navigate('/mri-upload')}>
+                            <Upload size={15} /> Upload MRI
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
         </div>
 
@@ -323,6 +398,7 @@ const Dashboard = () => {
         .card-header-with-icon { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
         .card-header-with-icon h3 { margin: 0; font-size: 1.15rem; }
         .mock-graph { height: 160px; margin-top: 20px; display: flex; align-items: flex-end; }
+        .graph-empty { width: 100%; padding: 48px 12px; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
         .graph-bars { width: 100%; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 10px; }
         .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; }
         .bar-fill { width: 45%; background: var(--grad-primary); border-radius: 6px 6px 0 0; animation: growBar 1s ease-out forwards; }
@@ -371,6 +447,16 @@ const Dashboard = () => {
         .status-v { font-size: 0.72rem; color: var(--secondary); font-weight: 700; text-transform: uppercase; }
 
         .recommendation-card { background: var(--grad-accent); padding: 20px; border-radius: var(--radius-lg); color: white; display: flex; gap: 14px; align-items: flex-start; }
+        .mri-prescriptions-section { margin: 24px 0; }
+        .prescription-empty, .prescription-card { padding: 18px; }
+        .prescription-list { display: flex; flex-direction: column; gap: 12px; }
+        .prescription-card { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+        .prescription-info { display: flex; flex-direction: column; gap: 5px; }
+        .prescription-info span, .prescription-info p { color: var(--text-sub); font-size: 0.86rem; margin: 0; }
+        .prescription-info .review-note { color: #92400e; }
+        .prescription-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .prescription-pdf-btn, .prescription-upload-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 9px; padding: 9px 12px; color: white; background: var(--primary); font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .prescription-upload-btn { background: var(--secondary); }
         .rec-text h4 { margin: 0 0 4px 0; font-size: 0.95rem; }
         .rec-text p { font-size: 0.84rem; opacity: 0.95; margin: 0; line-height: 1.45; }
         .btn-full-outline { width: 100%; padding: 11px; border: 1px solid var(--surface-alt); background: white; border-radius: 10px; font-weight: 700; color: var(--text-main); cursor: pointer; transition: var(--transition); }

@@ -24,7 +24,6 @@ const Sidebar = () => {
 
   const doctorMenuItems = [
     { name: 'Patient Portal', path: '/doctor-portal', icon: <Stethoscope size={20} /> },
-    { name: 'Reports',        path: '/reports',       icon: <FileText size={20} /> },
   ];
 
   const menuItems = isDoctor ? doctorMenuItems : patientMenuItems;

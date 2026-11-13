@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const { normalizeDoctorName } = require('../utils/doctorIdentity');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/doctor-portal/patients
@@ -67,7 +68,9 @@ exports.getAllPatients = async (req, res) => {
           latest_speech_risk: latestSpeechEntry?.risk_level || null,
           overall_risk: overallRisk,
           tests_completed: (tests || []).length,
-          has_pending_prescription: prescriptions?.[0]?.status === 'pending',
+          has_pending_prescription: Boolean(
+            prescriptions?.[0] && (!prescriptions[0].status || prescriptions[0].status === 'pending')
+          ),
         };
       })
     );
@@ -131,7 +134,14 @@ exports.prescribeMRI = async (req, res) => {
 
     const { data: prescription, error } = await supabase
       .from('mri_prescriptions')
-      .insert({ doctor_id: req.user.id, patient_id, notes: notes || null, report_id: report_id || null })
+      .insert({
+        doctor_id: req.user.id,
+        patient_id,
+        notes: notes || null,
+        report_id: report_id || null,
+        status: 'pending',
+        prescribed_at: new Date().toISOString(),
+      })
       .select()
       .single();
 
@@ -139,19 +149,119 @@ exports.prescribeMRI = async (req, res) => {
       return res.status(500).json({ success: false, message: 'Failed to create prescription.' });
     }
 
-    // Create a notification report entry for the patient
-    await supabase.from('reports').insert({
-      user_id: patient_id,
-      report_id: `PRESC-${Math.floor(1000 + Math.random() * 9000)}`,
-      title: 'MRI Scan Prescribed',
-      report_type: 'Doctor Prescription',
-      risk_level: 'Moderate',
-      summary: `Dr. ${req.user.full_name} has prescribed an MRI scan. Notes: ${notes || 'Please schedule your MRI scan as soon as possible.'}`,
-    });
-
     res.status(201).json({ success: true, data: prescription, message: 'MRI scan prescribed successfully.' });
   } catch (err) {
     console.error('[Doctor Portal - prescribeMRI]', err);
+    res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @route   PATCH /api/doctor-portal/mri/:scanId/review
+// @desc    Approve MRI model results or request follow-up
+// @access  Doctor only; the prescribing doctor must review
+// ─────────────────────────────────────────────────────────────────────────────
+exports.reviewMRIScan = async (req, res) => {
+  try {
+    const { scanId } = req.params;
+    const { review_status, review_notes } = req.body;
+
+    if (!['approved', 'needs_follow_up'].includes(review_status)) {
+      return res.status(400).json({ success: false, message: 'Choose approval or follow-up review status.' });
+    }
+
+    const { data: scan, error: scanError } = await supabase
+      .from('mri_scans')
+      .select('id, user_id, mri_prescription_id, file_name, risk_level, analysis_notes, status')
+      .eq('id', scanId)
+      .single();
+
+    if (scanError || !scan) {
+      return res.status(404).json({ success: false, message: 'MRI scan not found.' });
+    }
+    if (!scan.mri_prescription_id) {
+      return res.status(400).json({ success: false, message: 'This scan is not linked to an MRI prescription.' });
+    }
+    if (review_status === 'approved' && (scan.status === 'failed' || !scan.risk_level)) {
+      return res.status(400).json({ success: false, message: 'This scan has no model result to approve. Request a follow-up scan instead.' });
+    }
+
+    const { data: prescription, error: prescriptionError } = await supabase
+      .from('mri_prescriptions')
+      .select('id, doctor_id')
+      .eq('id', scan.mri_prescription_id)
+      .eq('patient_id', scan.user_id)
+      .single();
+
+    if (prescriptionError || !prescription) {
+      return res.status(404).json({ success: false, message: 'Related MRI prescription not found.' });
+    }
+    if (prescription.doctor_id !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Only the prescribing doctor can review this scan.' });
+    }
+
+    const { data: reviewedScan, error: reviewError } = await supabase
+      .from('mri_scans')
+      .update({
+        review_status,
+        reviewed_by: req.user.id,
+        reviewed_at: new Date().toISOString(),
+        review_notes: review_notes?.trim() || null,
+      })
+      .eq('id', scanId)
+      .select()
+      .single();
+
+    if (reviewError) {
+      console.error('[MRI Review Update Error]', reviewError);
+      return res.status(500).json({ success: false, message: 'Failed to save MRI review.' });
+    }
+
+    if (review_status === 'needs_follow_up') {
+      const { error: prescriptionResetError } = await supabase
+        .from('mri_prescriptions')
+        .update({ status: 'pending' })
+        .eq('id', prescription.id);
+      if (prescriptionResetError) {
+        console.error('[MRI Follow-up Prescription Error]', prescriptionResetError);
+        return res.status(500).json({ success: false, message: 'Review saved, but the prescription could not be reopened for follow-up.' });
+      }
+    }
+
+    if (review_status === 'approved') {
+      const { data: existingReport, error: reportLookupError } = await supabase
+        .from('reports')
+        .select('id')
+        .eq('mri_scan_id', scan.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (reportLookupError) {
+        console.error('[MRI Review Report Lookup Error]', reportLookupError);
+        return res.status(500).json({ success: false, message: 'MRI approved, but its report could not be checked.' });
+      }
+
+      if (!existingReport) {
+        const { error: reportError } = await supabase.from('reports').insert({
+          user_id: scan.user_id,
+          report_id: `MRI-${scan.id}`,
+          title: 'Physician-Reviewed MRI Report',
+          report_type: 'MRI Insight',
+          mri_scan_id: scan.id,
+          risk_level: scan.risk_level,
+          summary: `${scan.analysis_notes || 'MRI analysis completed.'}${review_notes?.trim() ? ` Physician review: ${review_notes.trim()}` : ''}`,
+        });
+
+        if (reportError) {
+          console.error('[MRI Review Report Insert Error]', reportError);
+          return res.status(500).json({ success: false, message: 'MRI was approved, but the report could not be created.' });
+        }
+      }
+    }
+
+    res.status(200).json({ success: true, data: reviewedScan, message: 'MRI review saved.' });
+  } catch (err) {
+    console.error('[Doctor Portal - reviewMRIScan]', err);
     res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };
@@ -210,9 +320,16 @@ exports.getDoctorConsultations = async (req, res) => {
   try {
     const doctorUserId = req.user.id;
     // Find all doctor records matching user id or name
-    const { data: allDocs } = await supabase.from('doctors').select('id, user_id, full_name');
+    const { data: allDocs, error: doctorsError } = await supabase.from('doctors').select('id, user_id, full_name');
+    if (doctorsError) {
+      console.error('[Doctor Portal - doctor lookup]', doctorsError);
+      return res.status(500).json({ success: false, message: 'Failed to identify the doctor schedule.' });
+    }
     const matchingDocs = (allDocs || []).filter(
-      (d) => d.id === doctorUserId || d.user_id === doctorUserId || (d.full_name && req.user.full_name && d.full_name.toLowerCase().includes(req.user.full_name.toLowerCase()))
+      (d) => d.id === doctorUserId ||
+        d.user_id === doctorUserId ||
+        (d.full_name && req.user.full_name &&
+          normalizeDoctorName(d.full_name) === normalizeDoctorName(req.user.full_name))
     );
     const doctorIds = new Set([doctorUserId, ...matchingDocs.map((d) => d.id), ...matchingDocs.map((d) => d.user_id).filter(Boolean)]);
 
@@ -236,10 +353,7 @@ exports.getDoctorConsultations = async (req, res) => {
           .select('id, full_name, email, patient_id, date_of_birth, gender')
           .eq('id', c.user_id)
           .single();
-        let mUrl = c.meeting_url;
-        if (!mUrl || mUrl.includes('meet.jit.si') || mUrl.includes('meet.cognifusion.app')) {
-          mUrl = process.env.DEFAULT_GOOGLE_MEET_URL || 'https://meet.google.com/neu-lens-doc';
-        }
+        const mUrl = c.meeting_url?.startsWith('https://meet.google.com/') ? c.meeting_url : null;
         return {
           ...c,
           meeting_url: mUrl,

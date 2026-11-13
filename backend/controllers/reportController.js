@@ -59,8 +59,9 @@ exports.getClinicalSummary = async (req, res) => {
     // Fetch latest MRI scan
     const { data: mriResults } = await supabase
       .from('mri_scans')
-      .select('hippocampal_vol, atrophy_pct, risk_level, file_name, file_url, analysis_notes, analyzed_at')
+      .select('hippocampal_vol, atrophy_pct, risk_level, file_name, file_url, analysis_notes, review_notes, reviewed_at, analyzed_at')
       .eq('user_id', userId)
+      .eq('review_status', 'approved')
       .order('submitted_at', { ascending: false })
       .limit(1);
 
@@ -139,7 +140,7 @@ exports.getClinicalSummary = async (req, res) => {
             ? { stability_pct: latestSpeech.stability_pct, neural_latency: latestSpeech.neural_latency, risk_level: latestSpeech.risk_level, date: latestSpeech.submitted_at }
             : null,
           mri: latestMRI
-            ? { hippocampal_vol: latestMRI.hippocampal_vol, atrophy_pct: latestMRI.atrophy_pct, risk_level: latestMRI.risk_level, file_url: latestMRI.file_url, analysis_notes: latestMRI.analysis_notes, date: latestMRI.analyzed_at }
+            ? { hippocampal_vol: latestMRI.hippocampal_vol, atrophy_pct: latestMRI.atrophy_pct, risk_level: latestMRI.risk_level, file_name: latestMRI.file_name, file_url: latestMRI.file_url, analysis_notes: latestMRI.analysis_notes, review_notes: latestMRI.review_notes, date: latestMRI.analyzed_at }
             : null,
         },
         reports:      reports      || [],

@@ -1,4 +1,16 @@
 const supabase = require('../config/supabase');
+const { normalizeDoctorName } = require('../utils/doctorIdentity');
+
+const isGoogleMeetUrl = (value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' &&
+      url.hostname === 'meet.google.com' &&
+      /^\/[a-z]{3}-[a-z]{4}-[a-z]{3}\/?$/i.test(url.pathname);
+  } catch {
+    return false;
+  }
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/doctors
@@ -78,9 +90,6 @@ exports.bookConsultation = async (req, res) => {
       });
     }
 
-    // Generate live teleconsultation room URL via Google Meet
-    const meeting_url = doctor.google_meet_url || process.env.DEFAULT_GOOGLE_MEET_URL || 'https://meet.google.com/neu-lens-doc';
-
     const { data: consultation, error } = await supabase
       .from('consultations')
       .insert({
@@ -88,7 +97,7 @@ exports.bookConsultation = async (req, res) => {
         doctor_id,
         scheduled_at: new Date(scheduled_at).toISOString(),
         notes: notes || null,
-        meeting_url,
+        meeting_url: null,
         status: 'upcoming',
       })
       .select()
@@ -136,14 +145,8 @@ exports.getConsultations = async (req, res) => {
       return res.status(500).json({ success: false, message: 'Failed to fetch consultations.' });
     }
 
-    // Sanitize any legacy or Jitsi URLs into active Google Meet room
-    const defaultMeetUrl = process.env.DEFAULT_GOOGLE_MEET_URL || 'https://meet.google.com/neu-lens-doc';
     const sanitized = (consultations || []).map((c) => {
-      let mUrl = c.meeting_url;
-      if (!mUrl || mUrl.includes('meet.cognifusion.app') || mUrl.includes('meet.jit.si')) {
-        mUrl = c.doctors?.google_meet_url || defaultMeetUrl;
-      }
-      return { ...c, meeting_url: mUrl };
+      return { ...c, meeting_url: c.meeting_url && isGoogleMeetUrl(c.meeting_url) ? c.meeting_url : null };
     });
 
     res.status(200).json({ success: true, data: sanitized });
@@ -168,13 +171,44 @@ exports.updateMeetingUrl = async (req, res) => {
     }
 
     meeting_url = meeting_url.trim();
-    if (!meeting_url.startsWith('http://') && !meeting_url.startsWith('https://')) {
-      meeting_url = `https://${meeting_url}`;
+    if (!isGoogleMeetUrl(meeting_url)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Enter a valid Google Meet link, such as https://meet.google.com/abc-defg-hij.',
+      });
+    }
+
+    const { data: consultation, error: consultationError } = await supabase
+      .from('consultations')
+      .select('id, doctor_id')
+      .eq('id', id)
+      .single();
+
+    if (consultationError || !consultation) {
+      return res.status(404).json({ success: false, message: 'Consultation not found.' });
+    }
+
+    const { data: doctorProfile, error: doctorError } = await supabase
+      .from('doctors')
+      .select('id, user_id, full_name')
+      .eq('id', consultation.doctor_id)
+      .maybeSingle();
+
+    if (doctorError) {
+      console.error('[Meeting URL Doctor Lookup Error]', doctorError);
+      return res.status(500).json({ success: false, message: 'Failed to verify the assigned doctor.' });
+    }
+
+    const sameName = doctorProfile &&
+      normalizeDoctorName(doctorProfile.full_name) === normalizeDoctorName(req.user.full_name);
+    if (!doctorProfile ||
+      (doctorProfile.user_id !== req.user.id && consultation.doctor_id !== req.user.id && !sameName)) {
+      return res.status(403).json({ success: false, message: 'Only the assigned doctor can change this meeting link.' });
     }
 
     const { data: updated, error } = await supabase
       .from('consultations')
-      .update({ meeting_url, updated_at: new Date().toISOString() })
+      .update({ meeting_url })
       .eq('id', id)
       .select()
       .single();

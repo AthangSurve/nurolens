@@ -10,6 +10,7 @@ router.get('/me',                          ctrl.getDoctorProfile);
 router.get('/patients',                    ctrl.getAllPatients);
 router.get('/patients/:patientId',         ctrl.getPatientDetails);
 router.get('/consultations',               ctrl.getDoctorConsultations);
+router.patch('/mri/:scanId/review',          ctrl.reviewMRIScan);
 router.post('/prescriptions',              ctrl.prescribeMRI);
 router.post('/notes',                      ctrl.addDoctorNote);
 

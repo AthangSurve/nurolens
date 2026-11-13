@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 
 const { getDoctors, bookConsultation, getConsultations, cancelConsultation, completeConsultation, updateMeetingUrl } = require('../controllers/doctorController');
-const { protect } = require('../middleware/auth');
+const { protect, protectDoctor } = require('../middleware/auth');
 
 router.use(protect);
 
@@ -16,7 +16,7 @@ router.post('/book', bookConsultation);
 router.get('/consultations', getConsultations);
 
 // PATCH /api/doctors/consultations/:id/meeting-url — Update Google Meet URL
-router.patch('/consultations/:id/meeting-url', updateMeetingUrl);
+router.patch('/consultations/:id/meeting-url', protectDoctor, updateMeetingUrl);
 
 // PATCH /api/doctors/consultations/:id/cancel — Cancel an upcoming consultation
 router.patch('/consultations/:id/cancel', cancelConsultation);

@@ -53,10 +53,24 @@ exports.uploadMRI = async (req, res) => {
       // Generate local URL
       const file_url = `${req.protocol}://${req.get('host')}/uploads/mri/${fileName}`;
 
+      const { data: prescriptions, error: prescriptionError } = await supabase
+        .from('mri_prescriptions')
+        .select('id, status')
+        .eq('patient_id', userId)
+        .order('prescribed_at', { ascending: false })
+        .limit(10);
+
+      if (prescriptionError) {
+        console.error('[MRI Prescription Lookup Error]', prescriptionError);
+        errorsList.push(`Could not check MRI prescription for ${file.originalname}.`);
+        continue;
+      }
+      const prescription = (prescriptions || []).find((item) => !item.status || item.status === 'pending');
+
       // --- Execute AI Inference Model ---
       let risk_level = 'Unknown';
-      let hippocampal_vol = 0;
-      let atrophy_pct = 0;
+      let hippocampal_vol = null;
+      let atrophy_pct = null;
       let ai_insights = 'No prediction available.';
 
       try {
@@ -88,14 +102,11 @@ exports.uploadMRI = async (req, res) => {
           ai_insights = `Diagnosis: ${aiResult.clinical_diagnosis || 'N/A'} | Confidence: ${(aiResult.confidence * 100).toFixed(1)}% | Estimated Atrophy: ${atrophy_pct}%`;
         } else {
            console.error('[AI Model Failure]', aiResult);
-           // Fallback to basic metrics if AI fails
-           hippocampal_vol = parseFloat((3000 + Math.random() * 1200).toFixed(1));
-           atrophy_pct = parseFloat((Math.random() * 20).toFixed(1));
-           risk_level = atrophy_pct > 15 ? 'High' : (atrophy_pct > 10 ? 'Moderate' : 'Low');
-           ai_insights = 'Fallback mock data generated due to AI failure.';
+           ai_insights = `Analysis unavailable: ${aiResult.error || 'The model returned no prediction.'}`;
         }
       } catch (err) {
-        console.error('[Temp File/AI Error]', err);
+        console.error('[MRI AI Inference Error]', err);
+        ai_insights = `Analysis unavailable: ${err.message}`;
       }
 
       // --- Determine format ---
@@ -109,7 +120,8 @@ exports.uploadMRI = async (req, res) => {
       };
 
       // --- Save MRI record to DB ---
-      const finalRiskLevel = ['Low', 'Moderate', 'High'].includes(risk_level) ? risk_level : 'Moderate';
+      const hasModelResult = ['Low', 'Moderate', 'High'].includes(risk_level);
+      const finalRiskLevel = hasModelResult ? risk_level : null;
       const { data: scanRecord, error: dbError } = await supabase
         .from('mri_scans')
         .insert({
@@ -118,7 +130,9 @@ exports.uploadMRI = async (req, res) => {
           file_url,
           file_size_bytes: file.size,
           file_format: formatMap[ext] || 'Unknown',
-          status: 'verified',
+          status: hasModelResult ? 'verified' : 'failed',
+          review_status: 'pending',
+          mri_prescription_id: prescription?.id || null,
           hippocampal_vol,
           atrophy_pct,
           risk_level: finalRiskLevel,
@@ -134,16 +148,16 @@ exports.uploadMRI = async (req, res) => {
         continue;
       }
 
-      // Auto-generate report
-      await supabase.from('reports').insert({
-        user_id: userId,
-        report_id: `REP-${Math.floor(1000 + Math.random() * 9000)}`,
-        title: 'Hippocampal Volumetric Report',
-        report_type: 'MRI Insight',
-        mri_scan_id: scanRecord.id,
-        risk_level: finalRiskLevel,
-        summary: `MRI scan analyzed. Risk: ${finalRiskLevel}. ${ai_insights}`,
-      });
+      if (prescription) {
+        const { error: prescriptionUpdateError } = await supabase
+          .from('mri_prescriptions')
+          .update({ status: 'analyzed' })
+          .eq('id', prescription.id);
+        if (prescriptionUpdateError) {
+          console.error('[MRI Prescription Update Error]', prescriptionUpdateError);
+          errorsList.push(`Scan uploaded, but prescription status could not be updated for ${file.originalname}.`);
+        }
+      }
 
       uploadedScans.push({
         file_name: file.originalname,
@@ -153,7 +167,9 @@ exports.uploadMRI = async (req, res) => {
         hippocampal_vol,
         atrophy_pct,
         risk_level: finalRiskLevel,
-        status: 'verified',
+        status: hasModelResult ? 'verified' : 'failed',
+        review_status: 'pending',
+        prescription_id: prescription?.id || null,
         scan_id: scanRecord.id,
       });
     }
@@ -186,7 +202,7 @@ exports.getMRIHistory = async (req, res) => {
   try {
     const { data: scans, error } = await supabase
       .from('mri_scans')
-      .select('id, file_name, file_url, analysis_notes, file_format, file_size_bytes, status, hippocampal_vol, atrophy_pct, risk_level, submitted_at, analyzed_at')
+      .select('id, file_name, file_url, analysis_notes, file_format, file_size_bytes, status, review_status, review_notes, reviewed_at, mri_prescription_id, hippocampal_vol, atrophy_pct, risk_level, submitted_at, analyzed_at')
       .eq('user_id', req.user.id)
       .order('submitted_at', { ascending: false })
       .limit(20);

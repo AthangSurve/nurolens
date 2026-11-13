@@ -136,7 +136,9 @@ const ConsultDoctor = () => {
       try {
         await doctorService.completeConsultation(activeCall.id);
         loadConsultations();
-      } catch (_) {}
+      } catch (err) {
+        setError(err.response?.data?.message || 'Failed to mark the consultation complete.');
+      }
     }
     setActiveCall(null);
   };
@@ -239,18 +241,13 @@ const ConsultDoctor = () => {
               })}.
             </p>
             <div className="success-actions">
-              <button
-                className="btn-join-call"
-                onClick={() => setActiveCall({
-                  id: success.consultation_id,
-                  doctor: success.doctor,
-                  specialty: success.specialty,
-                  meeting_url: success.meeting_url,
-                  scheduled_at: success.scheduled_at
-                })}
-              >
-                <Video size={16} /> Enter Video Room
-              </button>
+            {success.meeting_url ? (
+              <a className="btn-join-call" href={success.meeting_url} target="_blank" rel="noreferrer">
+                <Video size={16} /> Open Google Meet
+              </a>
+            ) : (
+              <span className="meet-link-pending">Your doctor will add the shared Google Meet link before the appointment.</span>
+            )}
               <button
                 className="btn-link-sec"
                 onClick={() => { setActiveTab('consultations'); setSuccess(null); }}
@@ -350,22 +347,6 @@ const ConsultDoctor = () => {
                     >
                       <Calendar size={16} /> Book Session
                     </button>
-                    <button
-                      className="btn-quick-call"
-                      title="Direct video consultation room"
-                      onClick={() => {
-                        const roomClean = doc.full_name.replace(/[^a-zA-Z0-9]/g, '');
-                        setActiveCall({
-                          id: `instant-${doc.id}`,
-                          doctor: doc.full_name,
-                          specialty: doc.specialty,
-                          meeting_url: `https://meet.jit.si/NeuroLens-${roomClean}-${Date.now()}`,
-                          scheduled_at: new Date().toISOString(),
-                        });
-                      }}
-                    >
-                      <Video size={16} /> Meet Now
-                    </button>
                   </div>
                 </div>
               ))}
@@ -460,35 +441,36 @@ const ConsultDoctor = () => {
                         <>
                           <button
                             className="btn-join-call"
-                            onClick={() => setActiveCall({
-                              id: c.id,
-                              doctor: doc.full_name || 'Specialist',
-                              specialty: doc.specialty || 'Telehealth',
-                              meeting_url: c.meeting_url || `https://meet.jit.si/NeuroLens-Session-${c.id}`,
-                              scheduled_at: c.scheduled_at,
-                              notes: c.notes,
-                            })}
+                            disabled={!c.meeting_url}
+                            onClick={() => {
+                              setActiveCall({
+                                id: c.id,
+                                doctor: doc.full_name || 'Specialist',
+                                specialty: doc.specialty || 'Telehealth',
+                                meeting_url: c.meeting_url,
+                                scheduled_at: c.scheduled_at,
+                                notes: c.notes,
+                              });
+                              if (c.meeting_url) window.open(c.meeting_url, '_blank', 'noopener,noreferrer');
+                            }}
                           >
-                            <Video size={16} /> Join Video Call
+                            <Video size={16} /> Open Google Meet
                           </button>
 
                           <div className="c-sub-actions">
                             <button
                               className="btn-icon-sub"
                               title="Copy Meeting Link"
-                              onClick={() => copyMeetingLink(c.meeting_url || `https://meet.jit.si/NeuroLens-Session-${c.id}`)}
+                              disabled={!c.meeting_url}
+                              onClick={() => copyMeetingLink(c.meeting_url)}
                             >
                               {copied ? <Check size={14} color="#10B981" /> : <Copy size={14} />} Link
                             </button>
-                            <a
-                              href={c.meeting_url || `https://meet.jit.si/NeuroLens-Session-${c.id}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="btn-icon-sub"
-                              title="Open in Standalone Tab"
-                            >
-                              <ExternalLink size={14} /> Tab
-                            </a>
+                            {c.meeting_url && (
+                              <a href={c.meeting_url} target="_blank" rel="noreferrer" className="btn-icon-sub" title="Open saved Google Meet">
+                                <ExternalLink size={14} /> Tab
+                              </a>
+                            )}
                             <button
                               className="btn-cancel-appt"
                               onClick={() => handleCancel(c.id)}
@@ -657,16 +639,6 @@ const ConsultDoctor = () => {
                   <span>Full Window</span>
                 </a>
 
-                <a
-                  href="https://meet.google.com/new"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn-room-action google"
-                  title="Switch to Google Meet if preferred"
-                >
-                  Google Meet
-                </a>
-
                 <button
                   className="btn-room-close"
                   onClick={() => setActiveCall(null)}
@@ -682,12 +654,18 @@ const ConsultDoctor = () => {
               {/* Left Side: Video Feed */}
               <div className="p-video-side">
                 <div className="video-frame-wrap">
-                  <iframe
-                    src={`${activeCall.meeting_url}#config.prejoinPageEnabled=false&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_WATERMARK_FOR_GUESTS=false`}
-                    title="NeuroLens Specialist Teleconsultation"
-                    allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
-                    className="teleconsult-iframe"
-                  />
+                  <div className="meet-join-panel">
+                    <Video size={42} />
+                    <h3>Google Meet consultation</h3>
+                    <p>You and your doctor use this exact saved appointment link.</p>
+                    {activeCall.meeting_url ? (
+                      <a href={activeCall.meeting_url} target="_blank" rel="noreferrer">
+                        <ExternalLink size={16} /> Open Google Meet
+                      </a>
+                    ) : (
+                      <span>Your doctor has not added a Google Meet link yet.</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -724,11 +702,9 @@ const ConsultDoctor = () => {
                       </div>
                       {patientSummary?.scores?.mri ? (
                         <div className="shared-mri-card">
-                          <img
-                            src={patientSummary.scores.mri.file_url || 'https://images.unsplash.com/photo-1559757175-5700dde675bc?auto=format&fit=crop&q=80&w=300'}
-                            alt="MRI Brain Scan"
-                            className="shared-mri-img"
-                          />
+                          {patientSummary.scores.mri.file_url
+                            ? <img src={patientSummary.scores.mri.file_url} alt={`Uploaded scan: ${patientSummary.scores.mri.file_name}`} className="shared-mri-img" />
+                            : <div className="shared-mri-img missing-scan-preview">Scan preview unavailable</div>}
                           <div className="shared-mri-meta">
                             <p><strong>Hippocampal Vol:</strong> {Number(patientSummary.scores.mri.hippocampal_vol || 0).toFixed(0)} mm³</p>
                             <p><strong>Cortical Atrophy:</strong> {Number(patientSummary.scores.mri.atrophy_pct || 0).toFixed(1)}%</p>
@@ -1034,6 +1010,9 @@ const ConsultDoctor = () => {
           transition: var(--transition);
         }
         .btn-join-call:hover { background: #15803d; transform: translateY(-1px); }
+        .btn-join-call { text-decoration: none; }
+        .btn-join-call:disabled { opacity: .5; cursor: not-allowed; }
+        .meet-link-pending { align-self: center; color: #64748b; font-size: .86rem; }
         .btn-link-sec {
           background: none;
           border: none;
@@ -1624,12 +1603,10 @@ const ConsultDoctor = () => {
           background: #000;
           position: relative;
         }
-        .teleconsult-iframe {
-          width: 100%;
-          height: 100%;
-          border: none;
-          display: block;
-        }
+        .meet-join-panel { min-height: 100%; padding: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: white; text-align: center; background: linear-gradient(135deg, #0f172a, #1e3a8a); }
+        .meet-join-panel h3, .meet-join-panel p { margin: 0; }
+        .meet-join-panel p, .meet-join-panel span { color: #cbd5e1; }
+        .meet-join-panel a { display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; border-radius: 10px; background: #2563eb; color: white; font-weight: 800; text-decoration: none; }
 
         .video-room-footer {
           display: flex;

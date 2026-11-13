@@ -65,6 +65,7 @@ export const doctorPortalService = {
   getPatient:       (id)             => api.get(`/doctor-portal/patients/${id}`),
   getConsultations: ()               => api.get('/doctor-portal/consultations'),
   prescribeMRI:     (data)           => api.post('/doctor-portal/prescriptions', data),
+  reviewMRI:        (id, data)       => api.patch(`/doctor-portal/mri/${id}/review`, data),
   addNote:          (data)           => api.post('/doctor-portal/notes', data),
   updateMeetingUrl: (id, meeting_url) => api.patch(`/doctors/consultations/${id}/meeting-url`, { meeting_url }),
 };

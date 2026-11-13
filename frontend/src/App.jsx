@@ -50,20 +50,20 @@ function App() {
               <Route path="/signup" element={<Signup />} />
 
               {/* Protected — Patient */}
-              <Route path="/dashboard"      element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/tests"          element={<ProtectedRoute><ClinicalTests /></ProtectedRoute>} />
-              <Route path="/tests/mmse"     element={<ProtectedRoute><MMSETest /></ProtectedRoute>} />
-              <Route path="/tests/moca"     element={<ProtectedRoute><MoCATest /></ProtectedRoute>} />
-              <Route path="/tests/clock"    element={<ProtectedRoute><ClockDrawingTest /></ProtectedRoute>} />
-              <Route path="/tests/trail"    element={<ProtectedRoute><TrailMakingTest /></ProtectedRoute>} />
-              <Route path="/speech-test"    element={<ProtectedRoute><SpeechTest /></ProtectedRoute>} />
-              <Route path="/mri-upload"     element={<ProtectedRoute><MRIUpload /></ProtectedRoute>} />
-              <Route path="/reports"        element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-              <Route path="/consult-doctor" element={<ProtectedRoute><ConsultDoctor /></ProtectedRoute>} />
-              <Route path="/profile"        element={<ProtectedRoute><ProfileEdit /></ProtectedRoute>} />
+              <Route path="/dashboard"      element={<ProtectedRoute role="patient"><Dashboard /></ProtectedRoute>} />
+              <Route path="/tests"          element={<ProtectedRoute role="patient"><ClinicalTests /></ProtectedRoute>} />
+              <Route path="/tests/mmse"     element={<ProtectedRoute role="patient"><MMSETest /></ProtectedRoute>} />
+              <Route path="/tests/moca"     element={<ProtectedRoute role="patient"><MoCATest /></ProtectedRoute>} />
+              <Route path="/tests/clock"    element={<ProtectedRoute role="patient"><ClockDrawingTest /></ProtectedRoute>} />
+              <Route path="/tests/trail"    element={<ProtectedRoute role="patient"><TrailMakingTest /></ProtectedRoute>} />
+              <Route path="/speech-test"    element={<ProtectedRoute role="patient"><SpeechTest /></ProtectedRoute>} />
+              <Route path="/mri-upload"     element={<ProtectedRoute role="patient"><MRIUpload /></ProtectedRoute>} />
+              <Route path="/reports"        element={<ProtectedRoute role="patient"><Reports /></ProtectedRoute>} />
+              <Route path="/consult-doctor" element={<ProtectedRoute role="patient"><ConsultDoctor /></ProtectedRoute>} />
+              <Route path="/profile"        element={<ProtectedRoute role="patient"><ProfileEdit /></ProtectedRoute>} />
 
               {/* Doctor portal (JWT + role=doctor enforced on backend) */}
-              <Route path="/doctor-portal"  element={<ProtectedRoute><DoctorPortal /></ProtectedRoute>} />
+              <Route path="/doctor-portal"  element={<ProtectedRoute role="doctor"><DoctorPortal /></ProtectedRoute>} />
             </Routes>
           </Layout>
         </div>

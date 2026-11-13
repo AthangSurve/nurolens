@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { doctorPortalService, testService } from '../services/api';
+import React, { useEffect, useState } from 'react';
+import { doctorPortalService } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   Users, Brain, Mic, Upload, AlertTriangle, CheckCircle2,
   ChevronRight, X, FileText, PenLine, Stethoscope, Activity,
   Clock, User, GraduationCap, ArrowLeft, Video, MessageSquare,
-  ShieldCheck, Sparkles, PhoneOff, ExternalLink, RefreshCw, Eye
+  ShieldCheck, Sparkles, PhoneOff, ExternalLink, RefreshCw, Eye, Save
 } from 'lucide-react';
 
 // ── Risk Badge ────────────────────────────────────────────────────────────────
@@ -52,7 +52,10 @@ const DoctorMeetingRoom = ({ consultation, doctorUser, onClose, onNoteSaved }) =
     if (consultation.user_id) {
       doctorPortalService.getPatient(consultation.user_id)
         .then((r) => setPatientDetails(r.data.data))
-        .catch(() => {})
+        .catch((err) => {
+          console.error('[Doctor Meeting - patient records]', err);
+          setPatientDetails(null);
+        })
         .finally(() => setLoadingPatient(false));
     }
   }, [consultation.user_id]);
@@ -71,7 +74,7 @@ const DoctorMeetingRoom = ({ consultation, doctorUser, onClose, onNoteSaved }) =
       setSaveSuccess(true);
       if (onNoteSaved) onNoteSaved();
       setTimeout(() => setSaveSuccess(false), 3500);
-    } catch (err) {
+    } catch {
       alert('Failed to save notes. Please try again.');
     } finally {
       setSavingNote(false);
@@ -116,11 +119,14 @@ const DoctorMeetingRoom = ({ consultation, doctorUser, onClose, onNoteSaved }) =
           <div className="drh-right">
             <div className="call-timer"><Clock size={16} /> {formatTimer(duration)}</div>
             <a
-              href={consultation.meeting_url}
+              href={consultation.meeting_url || undefined}
               target="_blank"
               rel="noreferrer"
               className="btn-room-tool"
               title="Open full video window"
+              onClick={(event) => {
+                if (!consultation.meeting_url) event.preventDefault();
+              }}
             >
               <ExternalLink size={16} /> Full Window
             </a>
@@ -133,12 +139,18 @@ const DoctorMeetingRoom = ({ consultation, doctorUser, onClose, onNoteSaved }) =
           {/* Left Column: Video & Chat */}
           <div className="video-col">
             <div className="video-frame-container">
-              <iframe
-                src={`${consultation.meeting_url}#config.prejoinPageEnabled=false&interfaceConfig.SHOW_JITSI_WATERMARK=false`}
-                title="Teleconsultation Stream"
-                allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
-                className="room-iframe"
-              />
+              <div className="meet-link-panel">
+                <Video size={36} />
+                <h3>Google Meet</h3>
+                <p>Open the shared meeting link to join the patient. The patient uses this same link.</p>
+                {consultation.meeting_url ? (
+                  <a href={consultation.meeting_url} target="_blank" rel="noreferrer">
+                    <ExternalLink size={16} /> Open Google Meet
+                  </a>
+                ) : (
+                  <span>Add a Google Meet link to this appointment before joining.</span>
+                )}
+              </div>
             </div>
 
             {/* In-Call Discussion Chat */}
@@ -207,11 +219,9 @@ const DoctorMeetingRoom = ({ consultation, doctorUser, onClose, onNoteSaved }) =
                       {mri ? (
                         <div className="mri-shared-content">
                           <div className="mri-thumb-box">
-                            <img
-                              src={mri.file_url || 'https://images.unsplash.com/photo-1559757175-5700dde675bc?auto=format&fit=crop&q=80&w=300'}
-                              alt="Brain Scan"
-                              className="mri-thumb"
-                            />
+                            {mri.file_url
+                              ? <img src={mri.file_url} alt={`Uploaded scan: ${mri.file_name}`} className="mri-thumb" />
+                              : <span className="mri-no-preview">Original scan preview unavailable</span>}
                             <span className="mri-risk-tag" style={{ background: mri.risk_level === 'High' ? '#fee2e2' : mri.risk_level === 'Moderate' ? '#fef3c7' : '#dcfce7', color: mri.risk_level === 'High' ? '#dc2626' : mri.risk_level === 'Moderate' ? '#d97706' : '#16a34a' }}>
                               {mri.risk_level} Risk
                             </span>
@@ -327,6 +337,7 @@ const PatientModal = ({ patientId, doctorId, onClose }) => {
   const [submitting, setSubmitting] = useState(false);
   const [tab, setTab]           = useState('overview');
   const [msg, setMsg]           = useState('');
+  const [reviewNotes, setReviewNotes] = useState('');
 
   useEffect(() => {
     doctorPortalService.getPatient(patientId)
@@ -356,11 +367,33 @@ const PatientModal = ({ patientId, doctorId, onClose }) => {
     setSubmitting(true);
     try {
       await doctorPortalService.prescribeMRI({ patient_id: patientId, notes: prescNotes });
+      const refreshed = await doctorPortalService.getPatient(patientId);
+      setData(refreshed.data.data);
       setMsg('✅ MRI scan prescribed. Patient has been notified.');
       setPrescNotes('');
       setTimeout(() => setMsg(''), 4000);
     } catch { setMsg('❌ Failed to prescribe MRI.'); }
     finally { setSubmitting(false); }
+  };
+
+  const handleReviewMRI = async (scan, reviewStatus) => {
+    setSubmitting(true);
+    try {
+      const { data: response } = await doctorPortalService.reviewMRI(scan.id, {
+        review_status: reviewStatus,
+        review_notes: reviewNotes,
+      });
+      setData((current) => ({
+        ...current,
+        mri: current.mri.map((item) => item.id === scan.id ? response.data : item),
+      }));
+      setMsg(reviewStatus === 'approved' ? '✅ MRI result approved.' : 'Follow-up requested; patient can see your note.');
+      setReviewNotes('');
+    } catch (err) {
+      setMsg(err.response?.data?.message || '❌ Failed to save MRI review.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const p = data?.patient;
@@ -396,7 +429,7 @@ const PatientModal = ({ patientId, doctorId, onClose }) => {
 
             {/* Tabs */}
             <div className="modal-tabs">
-              {[['overview', 'Overview'], ['tests', 'Test Results'], ['reports', 'Reports'], ['actions', 'Doctor Actions']].map(([key, label]) => (
+              {[['overview', 'Overview'], ['tests', 'Test Results'], ['mri', 'MRI Review'], ['reports', 'Reports'], ['actions', 'Doctor Actions']].map(([key, label]) => (
                 <button key={key} className={`modal-tab ${tab === key ? 'active' : ''}`} onClick={() => setTab(key)}>{label}</button>
               ))}
             </div>
@@ -429,6 +462,58 @@ const PatientModal = ({ patientId, doctorId, onClose }) => {
                         </div>
                       </div>
                     ))
+                  )}
+                </div>
+              )}
+
+              {tab === 'mri' && (
+                <div className="mri-review-list">
+                  {(data.mri || []).length === 0 ? <p className="empty-msg">No MRI scans uploaded yet.</p> : (
+                    data.mri.map((scan) => {
+                      const prescription = (data.prescriptions || []).find((item) => item.id === scan.mri_prescription_id);
+                      const assignedToCurrentDoctor = prescription?.doctor_id === doctorId;
+                      return (
+                        <div className="mri-review-card" key={scan.id}>
+                          <div className="mri-review-heading">
+                            <div>
+                              <strong>{scan.file_name}</strong>
+                              <span>{new Date(scan.submitted_at || scan.analyzed_at).toLocaleString()}</span>
+                            </div>
+                            <span className={`mri-review-status ${scan.review_status || 'pending'}`}>
+                              {(scan.review_status || 'pending').replace(/_/g, ' ')}
+                            </span>
+                          </div>
+                          <p><strong>Model result:</strong> {scan.risk_level || scan.status} {scan.atrophy_pct != null ? `· ${scan.atrophy_pct}% estimated atrophy` : ''}</p>
+                          {scan.analysis_notes && <p>{scan.analysis_notes}</p>}
+                          {scan.review_notes && <p><strong>Doctor note:</strong> {scan.review_notes}</p>}
+                          {scan.file_url && <a href={scan.file_url} target="_blank" rel="noreferrer">Open uploaded scan <ExternalLink size={14} /></a>}
+                          {assignedToCurrentDoctor && (scan.review_status || 'pending') === 'pending' && (
+                            <div className="mri-review-actions">
+                              <textarea
+                                aria-label="MRI review note"
+                                placeholder="Optional review note for the patient"
+                                rows={2}
+                                value={reviewNotes}
+                                onChange={(event) => setReviewNotes(event.target.value)}
+                              />
+                              <div>
+                                <button
+                                  disabled={submitting || scan.status === 'failed' || !scan.risk_level}
+                                  onClick={() => handleReviewMRI(scan, 'approved')}
+                                >
+                                  Approve result
+                                </button>
+                                <button disabled={submitting} className="follow-up" onClick={() => handleReviewMRI(scan, 'needs_follow_up')}>Request follow-up</button>
+                              </div>
+                              {(scan.status === 'failed' || !scan.risk_level) && (
+                                <span className="mri-unlinked-note">No model result is available to approve. Request a follow-up scan.</span>
+                              )}
+                            </div>
+                          )}
+                          {!prescription && <span className="mri-unlinked-note">This scan was not uploaded against an MRI prescription and cannot be reviewed here.</span>}
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               )}
@@ -500,6 +585,9 @@ const DoctorPortal = () => {
   const [search, setSearch]               = useState('');
   const [selectedPatientId, setSelectedPatientId] = useState(null);
   const [activeMeeting, setActiveMeeting] = useState(null);
+  const [meetingUrlDrafts, setMeetingUrlDrafts] = useState({});
+  const [savingMeetingId, setSavingMeetingId] = useState('');
+  const [meetingMessages, setMeetingMessages] = useState({});
 
   useEffect(() => {
     loadPortalData();
@@ -518,6 +606,30 @@ const DoctorPortal = () => {
       setError('Failed to load doctor portal data. Please verify your doctor credentials.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveMeetingUrl = async (consultation) => {
+    const meetingUrl = (meetingUrlDrafts[consultation.id] || consultation.meeting_url || '').trim();
+    if (!meetingUrl) {
+      setMeetingMessages((messages) => ({ ...messages, [consultation.id]: 'Enter a Google Meet link.' }));
+      return;
+    }
+
+    setSavingMeetingId(consultation.id);
+    try {
+      const { data } = await doctorPortalService.updateMeetingUrl(consultation.id, meetingUrl);
+      setConsultations((items) => items.map((item) =>
+        item.id === consultation.id ? { ...item, meeting_url: data.data.meeting_url } : item
+      ));
+      setMeetingMessages((messages) => ({ ...messages, [consultation.id]: 'Meet link saved for both participants.' }));
+    } catch (err) {
+      setMeetingMessages((messages) => ({
+        ...messages,
+        [consultation.id]: err.response?.data?.message || 'Failed to save the Meet link.',
+      }));
+    } finally {
+      setSavingMeetingId('');
     }
   };
 
@@ -687,12 +799,39 @@ const DoctorPortal = () => {
                     </div>
                   )}
 
+                  <div className="meeting-link-editor">
+                    <label htmlFor={`meet-url-${c.id}`}>Shared Google Meet URL</label>
+                    <div>
+                      <input
+                        id={`meet-url-${c.id}`}
+                        type="url"
+                        placeholder="https://meet.google.com/abc-defg-hij"
+                        value={meetingUrlDrafts[c.id] ?? c.meeting_url ?? ''}
+                        onChange={(event) => setMeetingUrlDrafts((drafts) => ({ ...drafts, [c.id]: event.target.value }))}
+                      />
+                      <button onClick={() => saveMeetingUrl(c)} disabled={savingMeetingId === c.id}>
+                        <Save size={15} /> {savingMeetingId === c.id ? 'Saving' : 'Save link'}
+                      </button>
+                    </div>
+                    {meetingMessages[c.id] && <span className="meeting-link-message">{meetingMessages[c.id]}</span>}
+                    {c.meeting_url && (
+                      <a href={c.meeting_url} target="_blank" rel="noreferrer" className="meet-join-link">
+                        <ExternalLink size={14} /> Open saved Google Meet
+                      </a>
+                    )}
+                  </div>
+
                   <div className="dcc-actions">
                     <button
                       className="btn-join-teleconsult"
-                      onClick={() => setActiveMeeting(c)}
+                      onClick={() => {
+                        setActiveMeeting(c);
+                        window.open(c.meeting_url, '_blank', 'noopener,noreferrer');
+                      }}
+                      disabled={!c.meeting_url}
+                      title={!c.meeting_url ? 'Save a Google Meet link before joining.' : undefined}
                     >
-                      <Video size={16} /> Enter Teleconsultation Room
+                      <Video size={16} /> Review Patient & Meeting
                     </button>
                   </div>
                 </div>
@@ -766,6 +905,14 @@ const DoctorPortal = () => {
         .dcc-concern strong { display: block; margin-bottom: 2px; color: var(--text-main); }
         .dcc-concern p { margin: 0; color: var(--text-sub); }
         .btn-join-teleconsult { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white; border: none; border-radius: 12px; font-weight: 800; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 12px rgba(37,99,235,0.25); }
+        .btn-join-teleconsult:disabled { opacity: .5; cursor: not-allowed; }
+        .meeting-link-editor { padding: 12px; background: #f8fafc; border-radius: 10px; display: flex; flex-direction: column; gap: 7px; }
+        .meeting-link-editor label { font-size: .78rem; font-weight: 800; color: #475569; }
+        .meeting-link-editor > div { display: flex; gap: 8px; }
+        .meeting-link-editor input { min-width: 0; flex: 1; padding: 9px 10px; border: 1px solid #cbd5e1; border-radius: 8px; }
+        .meeting-link-editor button { display: flex; align-items: center; gap: 5px; padding: 8px 10px; border: 0; border-radius: 8px; background: #2563eb; color: white; font-weight: 700; cursor: pointer; }
+        .meeting-link-message { color: #475569; font-size: .78rem; }
+        .meet-join-link { display: inline-flex; align-items: center; gap: 5px; color: #2563eb; font-size: .82rem; font-weight: 700; text-decoration: none; }
 
         /* Doctor Meeting Room Overlay */
         .doc-room-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.85); z-index: 1200; display: flex; align-items: center; justify-content: center; padding: 16px; }
@@ -785,7 +932,11 @@ const DoctorPortal = () => {
         .doc-room-grid { display: grid; grid-template-columns: 1.25fr 1fr; flex: 1; overflow: hidden; }
         .video-col { display: flex; flex-direction: column; border-right: 1.5px solid #e2e8f0; }
         .video-frame-container { flex: 1.6; background: #000; position: relative; }
-        .room-iframe { width: 100%; height: 100%; border: none; }
+        .meet-link-panel { height: 100%; min-height: 250px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 30px; text-align: center; color: white; background: linear-gradient(135deg, #0f172a, #1e3a8a); }
+        .meet-link-panel h3, .meet-link-panel p { margin: 0; }
+        .meet-link-panel p { max-width: 420px; color: #cbd5e1; }
+        .meet-link-panel a { display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; border-radius: 10px; background: #2563eb; color: white; font-weight: 800; text-decoration: none; }
+        .meet-link-panel > span { color: #cbd5e1; }
         .room-chat-box { flex: 1; display: flex; flex-direction: column; background: #f8fafc; border-top: 1.5px solid #e2e8f0; }
         .chat-header { padding: 10px 16px; border-bottom: 1px solid #e2e8f0; font-size: 0.82rem; font-weight: 800; color: #475569; display: flex; align-items: center; gap: 6px; }
         .chat-messages { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
@@ -807,11 +958,26 @@ const DoctorPortal = () => {
 
         .patient-demographics-bar { display: flex; gap: 14px; font-size: 0.82rem; background: #f1f5f9; padding: 10px 14px; border-radius: 10px; }
         .record-panel-card { border: 1.5px solid #e2e8f0; border-radius: 14px; padding: 16px; }
+        .mri-review-list { display: flex; flex-direction: column; gap: 12px; }
+        .mri-review-card { padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; }
+        .mri-review-heading { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+        .mri-review-heading > div { display: flex; flex-direction: column; gap: 4px; }
+        .mri-review-heading span, .mri-review-card p, .mri-unlinked-note { font-size: .84rem; color: #64748b; margin: 0; }
+        .mri-review-status { padding: 4px 8px; border-radius: 12px; background: #fef3c7; color: #92400e !important; text-transform: capitalize; }
+        .mri-review-status.approved { background: #dcfce7; color: #166534 !important; }
+        .mri-review-status.needs_follow_up { background: #fee2e2; color: #991b1b !important; }
+        .mri-review-card > a { display: inline-flex; align-items: center; gap: 4px; color: #2563eb; font-size: .84rem; font-weight: 700; text-decoration: none; }
+        .mri-review-actions { display: flex; flex-direction: column; gap: 8px; }
+        .mri-review-actions textarea { width: 100%; padding: 9px; border: 1px solid #cbd5e1; border-radius: 8px; resize: vertical; }
+        .mri-review-actions > div { display: flex; gap: 8px; }
+        .mri-review-actions button { padding: 8px 12px; border: 0; border-radius: 8px; background: #059669; color: white; font-weight: 700; cursor: pointer; }
+        .mri-review-actions .follow-up { background: #d97706; }
         .rpc-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
         .rpc-title h4 { margin: 0; font-size: 0.95rem; }
         .mri-shared-content { display: flex; gap: 16px; }
         .mri-thumb-box { position: relative; width: 100px; height: 100px; border-radius: 10px; overflow: hidden; flex-shrink: 0; }
         .mri-thumb { width: 100%; height: 100%; object-fit: cover; }
+        .mri-no-preview { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; padding: 8px; background: #f1f5f9; color: #64748b; font-size: .72rem; text-align: center; }
         .mri-risk-tag { position: absolute; bottom: 0; inset-inline: 0; text-align: center; font-size: 0.65rem; font-weight: 800; padding: 2px; }
         .mri-shared-details p { margin: 2px 0; font-size: 0.85rem; color: #334155; }
         .mri-notes-text { font-size: 0.8rem; color: #64748b; margin-top: 6px !important; }

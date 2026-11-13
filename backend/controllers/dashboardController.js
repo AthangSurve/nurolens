@@ -15,6 +15,7 @@ exports.getDashboardData = async (req, res) => {
       { data: testResults },
       { data: speechResults },
       { data: mriResults },
+      { data: mriPrescriptions },
       { data: upcomingConsultations },
       { data: doctorNotes },
     ] = await Promise.all([
@@ -34,10 +35,17 @@ exports.getDashboardData = async (req, res) => {
 
       supabase
         .from('mri_scans')
-        .select('id, file_name, status, risk_level, submitted_at')
+        .select('id, file_name, status, risk_level, review_status, mri_prescription_id, submitted_at')
         .eq('user_id', userId)
         .order('submitted_at', { ascending: false })
         .limit(3),
+
+      supabase
+        .from('mri_prescriptions')
+        .select('id, doctor_id, notes, status, prescribed_at, created_at')
+        .eq('patient_id', userId)
+        .order('prescribed_at', { ascending: false })
+        .limit(10),
 
       supabase
         .from('consultations')
@@ -55,13 +63,44 @@ exports.getDashboardData = async (req, res) => {
         .limit(3),
     ]);
 
+    const prescriptionIds = (mriPrescriptions || []).map((prescription) => prescription.id);
+    const { data: prescriptionScans, error: prescriptionScansError } = prescriptionIds.length
+      ? await supabase
+        .from('mri_scans')
+        .select('id, file_name, status, risk_level, review_status, mri_prescription_id, submitted_at')
+        .eq('user_id', userId)
+        .in('mri_prescription_id', prescriptionIds)
+        .order('submitted_at', { ascending: false })
+      : { data: [], error: null };
+
+    if (prescriptionScansError) {
+      console.error('[Dashboard MRI Prescription Scans Error]', prescriptionScansError);
+      return res.status(500).json({ success: false, message: 'Failed to load MRI prescription scan status.' });
+    }
+
     // --- Derive latest test scores ---
     const latestMMSE = testResults?.find((r) => r.test_type === 'MMSE') || null;
     const latestMoCA = testResults?.find((r) => r.test_type === 'MoCA') || null;
     const latestClock = testResults?.find((r) => r.test_type === 'ClockDrawing' || r.test_type === 'CLOCK') || null;
     const latestTrail = testResults?.find((r) => r.test_type === 'TrailMaking' || r.test_type === 'TRAIL') || null;
     const latestSpeech = speechResults?.[0] || null;
-    const latestMRI = mriResults?.[0] || null;
+    const latestMRI = mriResults?.find((scan) => scan.review_status === 'approved') || null;
+
+    const prescriptionDoctorIds = [...new Set((mriPrescriptions || []).map((p) => p.doctor_id).filter(Boolean))];
+    const { data: prescriptionDoctors } = prescriptionDoctorIds.length
+      ? await supabase.from('users').select('id, full_name').in('id', prescriptionDoctorIds)
+      : { data: [] };
+    const doctorNames = new Map((prescriptionDoctors || []).map((doctor) => [doctor.id, doctor.full_name]));
+    const patientMriPrescriptions = (mriPrescriptions || []).map((prescription) => {
+      const scan = (prescriptionScans || []).find((item) => item.mri_prescription_id === prescription.id) || null;
+      return {
+        ...prescription,
+        status: prescription.status || (scan ? 'analyzed' : 'pending'),
+        prescribed_at: prescription.prescribed_at || prescription.created_at,
+        doctor_name: doctorNames.get(prescription.doctor_id) || 'Your doctor',
+        scan,
+      };
+    });
 
     // --- Build Recent Activity list (last 5 events across all categories) ---
     const recentActivity = [
@@ -83,7 +122,11 @@ exports.getDashboardData = async (req, res) => {
         type: 'MRI Analysis',
         date: m.submitted_at,
         score: m.status,
-        status: m.risk_level === 'Low' ? 'Verified' : m.risk_level,
+        status: m.review_status === 'approved'
+          ? 'Doctor approved'
+          : m.review_status === 'needs_follow_up'
+          ? 'Follow-up needed'
+          : 'Awaiting doctor review',
         risk: m.risk_level,
       })),
     ]
@@ -133,12 +176,9 @@ exports.getDashboardData = async (req, res) => {
         },
         doctor_notes: doctorNotes || [],
         recent_activity: recentActivity,
-        upcoming_consultation: upcomingConsultations?.[0] ? {
-          ...upcomingConsultations[0],
-          meeting_url: (upcomingConsultations[0].meeting_url && !upcomingConsultations[0].meeting_url.includes('meet.cognifusion.app') && !upcomingConsultations[0].meeting_url.includes('meet.jit.si'))
-            ? upcomingConsultations[0].meeting_url
-            : (process.env.DEFAULT_GOOGLE_MEET_URL || 'https://meet.google.com/neu-lens-doc')
-        } : null,
+        upcoming_consultation: upcomingConsultations?.[0] || null,
+        mri_prescriptions: patientMriPrescriptions,
+        trend_data: trendData,
         tests_completed: (testResults?.length || 0) + (speechResults?.length || 0) + (mriResults?.length || 0),
       },
     });

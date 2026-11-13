@@ -236,10 +236,19 @@ const MRIUpload = () => {
             <div className="results-section mt-4">
               <div className="card-modern results-header-card">
                 <CheckCircle2 size={44} className="text-secondary" />
-                <h2>Neuroimaging Volumetric Analysis Complete</h2>
+                <h2>MRI Scan Upload Complete</h2>
                 <p>
-                  Scan file <strong>{currentResult.file_name}</strong> processed with DenseNet-121 feature extraction.
+                  Scan file <strong>{currentResult.file_name}</strong> is available for review.
                 </p>
+                <div className="mri-review-notice">
+                  {currentResult.review_status === 'approved'
+                    ? 'A doctor has reviewed and approved this result.'
+                    : currentResult.review_status === 'needs_follow_up'
+                    ? `Your doctor requested follow-up${currentResult.review_notes ? `: ${currentResult.review_notes}` : '.'}`
+                    : currentResult.prescription_id || currentResult.mri_prescription_id
+                    ? 'Model output is preliminary and awaits review by the prescribing doctor.'
+                    : 'This scan is not linked to an MRI prescription; ask your doctor to review it.'}
+                </div>
               </div>
 
               {/* Multi-scan Selector if multiple files uploaded */}
@@ -344,71 +353,38 @@ const MRIUpload = () => {
                 {/* Volumetric Metrics & Diagnostic Staging */}
                 <div className="metrics-panel card-modern">
                   <div className="metric-header-row">
-                    <h3>Volumetric Biomarkers</h3>
+                    <h3>Model Output</h3>
                     <span
                       className="risk-tag"
                       style={{
-                        background: getRiskColor(currentResult.risk_level) + '1a',
-                        color: getRiskColor(currentResult.risk_level),
-                        border: `1.5px solid ${getRiskColor(currentResult.risk_level)}`
+                        background: currentResult.risk_level ? getRiskColor(currentResult.risk_level) + '1a' : '#f1f5f9',
+                        color: currentResult.risk_level ? getRiskColor(currentResult.risk_level) : '#64748b',
+                        border: `1.5px solid ${currentResult.risk_level ? getRiskColor(currentResult.risk_level) : '#cbd5e1'}`
                       }}
                     >
-                      {currentResult.risk_level} Risk
+                      {currentResult.risk_level ? `${currentResult.risk_level} Risk` : 'Unavailable'}
                     </span>
                   </div>
 
                   <div className="metrics-summary-table">
                     <div className="metric-row">
                       <span className="m-label">Total Hippocampal Volume</span>
-                      <strong className="m-val">{Number(currentResult.hippocampal_vol).toFixed(0)} mm³</strong>
-                    </div>
-                    <div className="metric-row">
-                      <span className="m-label">Age-Adjusted Norm</span>
-                      <strong className="m-val">3,450 ± 280 mm³</strong>
-                    </div>
-                    <div className="metric-row">
-                      <span className="m-label">Cortical Atrophy Percentage</span>
-                      <strong className="m-val" style={{ color: getRiskColor(currentResult.risk_level) }}>
-                        {Number(currentResult.atrophy_pct).toFixed(1)}%
+                      <strong className="m-val">
+                        {currentResult.hippocampal_vol != null ? `${Number(currentResult.hippocampal_vol).toFixed(0)} mm³` : 'Unavailable'}
                       </strong>
                     </div>
                     <div className="metric-row">
-                      <span className="m-label">Ventricular Enlargement Index</span>
-                      <strong className="m-val">
-                        {currentResult.atrophy_pct > 12 ? 'Moderate Enlargement' : 'Normal Size'}
-                      </strong>
-                    </div>
-                    <div className="metric-row">
-                      <span className="m-label">Clinical Staging Proxy</span>
-                      <strong className="m-val">
-                        {currentResult.risk_level === 'Low'
-                          ? 'CDR 0 (Intact / Non-Demented)'
-                          : currentResult.risk_level === 'Moderate'
-                          ? 'CDR 0.5 (Mild Cognitive Impairment)'
-                          : 'CDR 1.0 (Mild Dementia Staging)'}
-                      </strong>
-                    </div>
-                    <div className="metric-row">
-                      <span className="m-label">Braak Staging Estimate</span>
-                      <strong className="m-val">
-                        {currentResult.risk_level === 'Low' ? 'Stage I–II (Transentorhinal)' : 'Stage III–IV (Limbic)'}
+                      <span className="m-label">Estimated Atrophy</span>
+                      <strong className="m-val" style={{ color: currentResult.risk_level ? getRiskColor(currentResult.risk_level) : '#64748b' }}>
+                        {currentResult.atrophy_pct != null ? `${Number(currentResult.atrophy_pct).toFixed(1)}%` : 'Unavailable'}
                       </strong>
                     </div>
                   </div>
 
                   {/* Diagnostic Clinical Impression Notes */}
                   <div className="diagnostic-notes-box">
-                    <h4><ShieldCheck size={18} color="#10B981" /> Clinical Radiologic Impression</h4>
-                    <p>
-                      {currentResult.analysis_notes ||
-                        `Volumetric inspection indicates ${
-                          currentResult.risk_level === 'Low'
-                            ? 'preserved hippocampal volume within normal demographic percentiles with minimal ventricular dilation.'
-                            : currentResult.risk_level === 'Moderate'
-                            ? 'mild asymmetric hippocampal volume reduction and subtle temporal horn enlargement consistent with early MCI.'
-                            : 'pronounced bilateral hippocampal atrophy with significant ventricular enlargement indicative of progressive neurodegeneration.'
-                        }`}
-                    </p>
+                    <h4><ShieldCheck size={18} color="#10B981" /> Analysis Notes</h4>
+                    <p>{currentResult.analysis_notes || 'No model output is available for this scan.'}</p>
                   </div>
 
                   <div className="result-actions">
@@ -558,6 +534,7 @@ const MRIUpload = () => {
         .results-section { display: flex; flex-direction: column; gap: 24px; }
         .results-header-card { text-align: center; padding: 36px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
         .results-header-card h2 { font-size: 1.8rem; margin: 0; }
+        .mri-review-notice { margin-top: 8px; padding: 10px 14px; border-radius: 10px; background: #fffbeb; color: #92400e; font-size: .88rem; font-weight: 700; }
 
         .scan-selector-row { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
         .scan-select-btn { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border: 1.5px solid #cbd5e1; border-radius: 12px; background: white; cursor: pointer; font-weight: 700; font-size: 0.9rem; }
