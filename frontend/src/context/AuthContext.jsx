@@ -65,6 +65,12 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
+  const register = useCallback(async (payload) => {
+    const { data } = await api.post('/auth/signup', payload);
+    // Don't persist token or user — require explicit login per requirement
+    return data;
+  }, []);
+
   const logout = useCallback(() => {
     localStorage.removeItem('cf_token');
     localStorage.removeItem('cf_user');
@@ -78,7 +84,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, signup, logout, updateUser, api }}>
+    <AuthContext.Provider value={{ user, token, loading, login, signup, register, logout, updateUser, api }}>
       {children}
     </AuthContext.Provider>
   );

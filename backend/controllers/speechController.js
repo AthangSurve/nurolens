@@ -105,15 +105,26 @@ exports.uploadSpeech = async (req, res) => {
     const audio_url = `/uploads/${fileName}`;
 
     // Use ML results
-    const stability_pct = mlResult.stability_pct || 85.0;
+    const stability_pct = typeof mlResult.stability_pct === "number" ? mlResult.stability_pct : 85.0;
     const jitter_f0 = parseFloat((0.1 + Math.random() * 0.2).toFixed(2));
     const neural_latency = parseFloat((10 + Math.random() * 10).toFixed(1));
 
-    const risk_level = mlResult.risk_level || "Low";
+    // Strictly enforce: Voice stability high -> Dementia risk Low; Voice stability low -> Dementia risk High
+    let risk_level = mlResult.risk_level || "Low";
+    if (stability_pct >= 70.0) {
+      risk_level = "Low";
+    } else if (stability_pct >= 45.0) {
+      risk_level = "Moderate";
+    } else {
+      risk_level = "High";
+    }
+
     const analysis_notes =
-      mlResult.prediction === 1
-        ? "Acoustic biomarkers indicate patterns consistent with cognitive decline."
-        : "Vocal biomarkers are within normal range for typical cognitive function.";
+      risk_level === "High"
+        ? "Acoustic biomarkers indicate reduced vocal stability consistent with cognitive decline."
+        : risk_level === "Moderate"
+        ? "Acoustic biomarkers indicate mild vocal variability requiring periodic monitoring."
+        : "Vocal biomarkers demonstrate high speech stability within normal range for typical cognitive function.";
 
     // --- Save analysis to DB ---
     const { data: speechResult, error: dbError } = await supabase

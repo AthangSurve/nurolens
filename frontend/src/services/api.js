@@ -17,6 +17,8 @@ export const dashboardService = {
 export const testService = {
   submitMMSE:      (payload) => api.post('/tests/mmse', payload),
   submitMoCA:      (payload) => api.post('/tests/moca', payload),
+  submitClock:     (payload) => api.post('/tests/clock', payload),
+  submitTrail:     (payload) => api.post('/tests/trail', payload),
   getHistory:      (params)  => api.get('/tests/history', { params }),
   getLatestScores: ()        => api.get('/tests/latest-scores'),
 };
@@ -60,6 +62,7 @@ export const doctorPortalService = {
   getMe:            ()               => api.get('/doctor-portal/me'),
   getPatients:      ()               => api.get('/doctor-portal/patients'),
   getPatient:       (id)             => api.get(`/doctor-portal/patients/${id}`),
+  getConsultations: ()               => api.get('/doctor-portal/consultations'),
   prescribeMRI:     (data)           => api.post('/doctor-portal/prescriptions', data),
   addNote:          (data)           => api.post('/doctor-portal/notes', data),
 };

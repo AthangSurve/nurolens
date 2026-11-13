@@ -381,15 +381,153 @@ exports.getTestHistory = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+// @route   POST /api/tests/clock
+// @desc    Submit Clock Drawing test results
+// @access  Protected
+// ─────────────────────────────────────────────────────────────────────────────
+exports.submitClock = async (req, res) => {
+  try {
+    const { score, max_score = 10, target_time, metrics, suggestions, duration_secs } = req.body;
+
+    const finalScore = Number(score) || 0;
+    const finalMax   = Number(max_score) || 10;
+    const pct = (finalScore / finalMax) * 100;
+    const risk_level = pct >= 80 ? 'Low' : pct >= 50 ? 'Moderate' : 'High';
+
+    const { data: result, error } = await supabase
+      .from('test_results')
+      .insert({
+        user_id:        req.user.id,
+        test_type:      'CLOCK',
+        score:          finalScore,
+        max_score:      finalMax,
+        risk_level,
+        answers:        { target_time, metrics, suggestions },
+        section_scores: metrics || {},
+        duration_secs:  duration_secs || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[Clock Submit DB Error]', error);
+      return res.status(500).json({ success: false, message: 'Failed to save clock drawing result.' });
+    }
+
+    const reportSummary = `Clock Drawing Test (${target_time || 'Dynamic'}). Score: ${finalScore}/${finalMax} (${Math.round(pct)}%). ` +
+      `Risk Level: ${risk_level}. Visuospatial & Executive function: ${risk_level === 'Low' ? 'Intact' : risk_level === 'Moderate' ? 'Borderline' : 'Impaired'}.`;
+
+    await supabase.from('reports').insert({
+      user_id:        req.user.id,
+      report_id:      genReportId(),
+      title:          'Clock Drawing Assessment Summary',
+      report_type:    'Clinical Test',
+      test_result_id: result.id,
+      risk_level,
+      summary:        reportSummary,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: result.id,
+        score: finalScore,
+        max_score: finalMax,
+        risk_level,
+        metrics,
+        target_time,
+        suggestions,
+      },
+    });
+  } catch (err) {
+    console.error('[Clock Submit Error]', err);
+    res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @route   POST /api/tests/trail
+// @desc    Submit Trail Making test results
+// @access  Protected
+// ─────────────────────────────────────────────────────────────────────────────
+exports.submitTrail = async (req, res) => {
+  try {
+    const { level, time_seconds, errors = 0, classification, suggestions, duration_secs } = req.body;
+
+    const secs = Number(time_seconds) || Number(duration_secs) || 30;
+    const errCount = Number(errors) || 0;
+
+    let risk_level = 'Low';
+    if (secs > 75 || errCount >= 3) {
+      risk_level = 'High';
+    } else if (secs > 50 || errCount >= 1) {
+      risk_level = 'Moderate';
+    }
+
+    // Calculated score out of 100 based on speed and accuracy
+    const rawScore = Math.max(10, Math.min(100, Math.round(100 - (secs * 0.6) - (errCount * 12))));
+
+    const { data: result, error } = await supabase
+      .from('test_results')
+      .insert({
+        user_id:        req.user.id,
+        test_type:      'TRAIL',
+        score:          rawScore,
+        max_score:      100,
+        risk_level,
+        answers:        { level, time_seconds: secs, errors: errCount, classification, suggestions },
+        section_scores: { completion_time: secs, errors: errCount },
+        duration_secs:  secs,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[Trail Submit DB Error]', error);
+      return res.status(500).json({ success: false, message: 'Failed to save trail making result.' });
+    }
+
+    const reportSummary = `Trail Making Test (${level || 'Part A'}). Completion Time: ${secs}s. Errors: ${errCount}. ` +
+      `Classification: ${classification || risk_level}. Executive Attention & Processing Speed: ${risk_level}.`;
+
+    await supabase.from('reports').insert({
+      user_id:        req.user.id,
+      report_id:      genReportId(),
+      title:          'Trail Making Executive Function Report',
+      report_type:    'Clinical Test',
+      test_result_id: result.id,
+      risk_level,
+      summary:        reportSummary,
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        id: result.id,
+        score: rawScore,
+        max_score: 100,
+        risk_level,
+        time_seconds: secs,
+        errors: errCount,
+        classification,
+      },
+    });
+  } catch (err) {
+    console.error('[Trail Submit Error]', err);
+    res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // @route   GET /api/tests/latest-scores
-// @desc    Get the latest MMSE and MoCA scores for the dashboard
+// @desc    Get the latest MMSE, MoCA, Clock, and Trail scores for the dashboard
 // @access  Protected
 // ─────────────────────────────────────────────────────────────────────────────
 exports.getLatestScores = async (req, res) => {
   try {
     const { data: results, error } = await supabase
       .from('test_results')
-      .select('test_type, score, max_score, risk_level, adjusted_score, norm_percentile, adjusted_risk, completed_at')
+      .select('test_type, score, max_score, risk_level, adjusted_score, norm_percentile, adjusted_risk, answers, completed_at')
       .eq('user_id', req.user.id)
       .order('completed_at', { ascending: false });
 
@@ -397,12 +535,19 @@ exports.getLatestScores = async (req, res) => {
       return res.status(500).json({ success: false, message: 'Failed to fetch scores.' });
     }
 
-    const latestMMSE = results.find((r) => r.test_type === 'MMSE') || null;
-    const latestMoCA = results.find((r) => r.test_type === 'MoCA') || null;
+    const latestMMSE  = results.find((r) => r.test_type === 'MMSE') || null;
+    const latestMoCA  = results.find((r) => r.test_type === 'MoCA') || null;
+    const latestClock = results.find((r) => r.test_type === 'CLOCK') || null;
+    const latestTrail = results.find((r) => r.test_type === 'TRAIL') || null;
 
     res.status(200).json({
       success: true,
-      data: { MMSE: latestMMSE, MoCA: latestMoCA },
+      data: {
+        MMSE: latestMMSE,
+        MoCA: latestMoCA,
+        Clock: latestClock,
+        Trail: latestTrail,
+      },
     });
   } catch (err) {
     console.error('[GetLatestScores Error]', err);

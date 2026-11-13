@@ -33,7 +33,7 @@ const Navbar = () => {
           {isLandingPage ? (
             <Link to="/" className="brand-v2">
               <Activity className="brand-icon" size={28} strokeWidth={3} />
-              <span>CogniFusion</span>
+              <span>NeuroLens</span>
             </Link>
           ) : (
             <div className="search-pill">

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   User, Mail, Lock, Shield, ArrowRight, Activity, AlertCircle,
-  Calendar, GraduationCap, ChevronRight, Check, Heart, Brain,
+  Calendar, GraduationCap, ChevronRight, Check, Heart, Brain, Eye, EyeOff,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -54,9 +54,11 @@ const StepIndicator = ({ step }) => (
 // ─── Main Signup Component ────────────────────────────────────────────────────
 const Signup = () => {
   const navigate = useNavigate();
-  const { signup } = useAuth();
+  const { register } = useAuth();
 
   const [step, setStep]     = useState(1);
+  const [showPass, setShowPass]             = useState(false);
+  const [showDoctorCode, setShowDoctorCode] = useState(false);
   const [form, setForm]     = useState({
     full_name: '', email: '', password: '',
     date_of_birth: '', gender: '', educational_qualification: '',
@@ -90,8 +92,13 @@ const Signup = () => {
 
     setLoading(true);
     try {
-      await signup(form);
-      navigate(form.role === 'doctor' ? '/doctor-portal' : '/dashboard');
+      await register(form);
+      navigate('/login', {
+        state: {
+          message: 'Account registered successfully! Please sign in with your credentials.',
+          email: form.email,
+        },
+      });
     } catch (err) {
       setError(err.response?.data?.message || 'Signup failed. Please try again.');
     } finally {
@@ -158,9 +165,22 @@ const Signup = () => {
               <div className="input-with-icon">
                 <Lock size={18} />
                 <input
-                  type="password" name="password" placeholder="Min. 6 characters"
-                  value={form.password} onChange={handleChange} required
+                  type={showPass ? 'text' : 'password'}
+                  name="password"
+                  placeholder="Min. 6 characters"
+                  value={form.password}
+                  onChange={handleChange}
+                  required
                 />
+                <button
+                  type="button"
+                  className="icon-right"
+                  onClick={() => setShowPass(!showPass)}
+                  aria-label={showPass ? 'Hide password' : 'Show password'}
+                  tabIndex={-1}
+                >
+                  {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -260,12 +280,22 @@ const Signup = () => {
                 <div className="input-with-icon">
                   <Shield size={18} />
                   <input
-                    type="password"
+                    type={showDoctorCode ? 'text' : 'password'}
                     name="doctor_secret_code"
                     placeholder="Enter doctor registration code"
                     value={form.doctor_secret_code}
                     onChange={handleChange}
+                    required
                   />
+                  <button
+                    type="button"
+                    className="icon-right"
+                    onClick={() => setShowDoctorCode(!showDoctorCode)}
+                    aria-label={showDoctorCode ? 'Hide registration code' : 'Show registration code'}
+                    tabIndex={-1}
+                  >
+                    {showDoctorCode ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
                 </div>
               </div>
             )}
@@ -321,9 +351,11 @@ const Signup = () => {
         .required-star { color: #ef4444; }
         .field-hint { font-size: 0.8rem; color: var(--text-secondary, #64748b); margin: -4px 0 4px; font-weight: 400; }
         .input-with-icon { position: relative; display: flex; align-items: center; }
-        .input-with-icon svg { position: absolute; left: 15px; color: var(--text-secondary); pointer-events: none; }
-        .input-with-icon input { width: 100%; padding: 14px 15px 14px 45px; border: 1.5px solid #e2e8f0; border-radius: 12px; font-size: 1rem; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box; background: #f8faff; }
+        .input-with-icon > svg:first-child { position: absolute; left: 15px; color: var(--text-secondary); pointer-events: none; }
+        .input-with-icon input { width: 100%; padding: 14px 44px 14px 45px; border: 1.5px solid #e2e8f0; border-radius: 12px; font-size: 1rem; transition: border-color 0.2s, box-shadow 0.2s; box-sizing: border-box; background: #f8faff; }
         .input-with-icon input:focus { outline: none; border-color: var(--primary, #4a90e2); box-shadow: 0 0 0 3px rgba(74,144,226,0.15); background: white; }
+        .icon-right { position: absolute; right: 12px; background: none; border: none; cursor: pointer; color: var(--text-secondary, #64748b); display: flex; align-items: center; justify-content: center; padding: 6px; border-radius: 8px; transition: color 0.2s, background 0.2s; }
+        .icon-right:hover { color: var(--primary, #4a90e2); background: rgba(74,144,226,0.08); }
 
         /* Gender Selector */
         .gender-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }

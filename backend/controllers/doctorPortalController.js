@@ -163,22 +163,89 @@ exports.prescribeMRI = async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 exports.addDoctorNote = async (req, res) => {
   try {
-    const { patient_id, report_id, note } = req.body;
+    const { patient_id, report_id, note, improvements, diagnosis, recommendations } = req.body;
     if (!patient_id || !note) {
       return res.status(400).json({ success: false, message: 'patient_id and note are required.' });
     }
     const { data, error } = await supabase
       .from('doctor_notes')
-      .insert({ doctor_id: req.user.id, patient_id, report_id: report_id || null, note })
+      .insert({
+        doctor_id: req.user.id,
+        patient_id,
+        report_id: report_id || null,
+        note,
+        improvements: improvements || recommendations || null,
+        diagnosis: diagnosis || null,
+      })
       .select()
       .single();
 
     if (error) {
       return res.status(500).json({ success: false, message: 'Failed to save note.' });
     }
+
+    // Auto-create a clinical recommendation report entry for the patient
+    await supabase.from('reports').insert({
+      user_id: patient_id,
+      report_id: `NOTE-${Math.floor(1000 + Math.random() * 9000)}`,
+      title: `Clinical Recommendations — Dr. ${req.user.full_name}`,
+      report_type: 'Doctor Consultation Note',
+      risk_level: 'Moderate',
+      summary: `${note}${improvements ? ` | Targeted Improvements: ${improvements}` : ''}`,
+    });
+
     res.status(201).json({ success: true, data });
   } catch (err) {
     console.error('[Doctor Portal - addDoctorNote]', err);
+    res.status(500).json({ success: false, message: 'Internal server error.' });
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// @route   GET /api/doctor-portal/consultations
+// @desc    Get all consultations scheduled with the logged-in doctor
+// @access  Doctor only
+// ─────────────────────────────────────────────────────────────────────────────
+exports.getDoctorConsultations = async (req, res) => {
+  try {
+    const doctorUserId = req.user.id;
+    // Find all doctor records matching user id or name
+    const { data: allDocs } = await supabase.from('doctors').select('id, user_id, full_name');
+    const matchingDocs = (allDocs || []).filter(
+      (d) => d.id === doctorUserId || d.user_id === doctorUserId || (d.full_name && req.user.full_name && d.full_name.toLowerCase().includes(req.user.full_name.toLowerCase()))
+    );
+    const doctorIds = new Set([doctorUserId, ...matchingDocs.map((d) => d.id), ...matchingDocs.map((d) => d.user_id).filter(Boolean)]);
+
+    // Fetch consultations
+    const { data: allConsultations, error } = await supabase
+      .from('consultations')
+      .select('id, doctor_id, user_id, scheduled_at, duration_mins, status, notes, meeting_url, created_at')
+      .order('scheduled_at', { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ success: false, message: 'Failed to fetch consultations.' });
+    }
+
+    const filtered = (allConsultations || []).filter((c) => doctorIds.has(c.doctor_id));
+
+    // Attach patient info
+    const withPatients = await Promise.all(
+      filtered.map(async (c) => {
+        const { data: patient } = await supabase
+          .from('users')
+          .select('id, full_name, email, patient_id, date_of_birth, gender')
+          .eq('id', c.user_id)
+          .single();
+        return {
+          ...c,
+          patient: patient || { full_name: 'Patient', patient_id: 'N/A' },
+        };
+      })
+    );
+
+    res.status(200).json({ success: true, data: withPatients });
+  } catch (err) {
+    console.error('[Doctor Portal - getDoctorConsultations]', err);
     res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };

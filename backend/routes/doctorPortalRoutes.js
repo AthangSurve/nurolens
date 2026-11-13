@@ -9,6 +9,7 @@ router.use(protect, protectDoctor);
 router.get('/me',                          ctrl.getDoctorProfile);
 router.get('/patients',                    ctrl.getAllPatients);
 router.get('/patients/:patientId',         ctrl.getPatientDetails);
+router.get('/consultations',               ctrl.getDoctorConsultations);
 router.post('/prescriptions',              ctrl.prescribeMRI);
 router.post('/notes',                      ctrl.addDoctorNote);
 

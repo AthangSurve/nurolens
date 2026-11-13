@@ -39,7 +39,7 @@ const Sidebar = () => {
       <div className="sidebar-brand">
         <div className="brand-icon-sq"><Activity size={24} strokeWidth={3} /></div>
         <div className="brand-text">
-          <strong>CogniFusion</strong>
+          <strong>NeuroLens</strong>
           <span>{isDoctor ? 'Doctor Portal' : 'Clinical Hub'}</span>
         </div>
       </div>

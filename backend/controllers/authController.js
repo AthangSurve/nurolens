@@ -116,6 +116,28 @@ exports.signup = async (req, res) => {
       });
     }
 
+    // If registered as doctor, add to doctors directory table
+    if (assignedRole === 'doctor') {
+      try {
+        await supabase.from('doctors').insert({
+          id: newUser.id,
+          user_id: newUser.id,
+          full_name: newUser.full_name.startsWith('Dr.') ? newUser.full_name : `Dr. ${newUser.full_name}`,
+          specialty: 'Cognitive Neurologist & Neuropsychiatrist',
+          rating: 4.9,
+          review_count: 50,
+          location: 'NeuroLens Clinical Center / Remote Telehealth',
+          experience: '10+ years',
+          availability: 'Available Today',
+          image_url: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=400&h=400',
+          bio: 'Licensed clinician specializing in dementia diagnosis, teleconsultations, and neuroimaging evaluation.',
+          is_active: true,
+        });
+      } catch (docErr) {
+        console.error('[Doctor Record Creation Error]', docErr);
+      }
+    }
+
     sendToken(newUser, 201, res);
   } catch (err) {
     console.error('[Signup Error]', err);

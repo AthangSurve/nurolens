@@ -5,7 +5,7 @@ import {
   PhoneOff, ExternalLink, Copy, Check, User, Search, Sparkles,
   ChevronRight, RefreshCw, MessageSquare
 } from 'lucide-react';
-import { doctorService } from '../services/api';
+import { doctorService, reportService } from '../services/api';
 
 const ConsultDoctor = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -33,6 +33,12 @@ const ConsultDoctor = () => {
   const [activeCall, setActiveCall]     = useState(null);
   const [callDuration, setCallDuration] = useState(0);
   const [copied, setCopied]             = useState(false);
+  const [meetingWsTab, setMeetingWsTab] = useState('mri'); // 'mri' | 'notes' | 'chat'
+  const [patientSummary, setPatientSummary] = useState(null);
+  const [patientChatMsg, setPatientChatMsg] = useState('');
+  const [roomChat, setRoomChat] = useState([
+    { sender: 'system', text: 'Secure teleconsultation session active. Your doctor will review your MRI and test history with you.' }
+  ]);
   const timerRef                        = useRef(null);
 
   // Load specialists on mount
@@ -40,6 +46,15 @@ const ConsultDoctor = () => {
     loadDoctors();
     loadConsultations();
   }, []);
+
+  // Fetch patient clinical records when video room opens
+  useEffect(() => {
+    if (activeCall) {
+      reportService.getSummary()
+        .then((res) => setPatientSummary(res.data.data))
+        .catch(() => {});
+    }
+  }, [activeCall]);
 
   // Timer for active video call
   useEffect(() => {
@@ -662,14 +677,153 @@ const ConsultDoctor = () => {
               </div>
             </div>
 
-            {/* Video Feed (Embedded Jitsi Meet) */}
-            <div className="video-frame-wrap">
-              <iframe
-                src={`${activeCall.meeting_url}#config.prejoinPageEnabled=false&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_WATERMARK_FOR_GUESTS=false`}
-                title="NeuroLens Specialist Teleconsultation"
-                allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
-                className="teleconsult-iframe"
-              />
+            {/* Collaborative Teleconsultation Workspace */}
+            <div className="patient-room-grid">
+              {/* Left Side: Video Feed */}
+              <div className="p-video-side">
+                <div className="video-frame-wrap">
+                  <iframe
+                    src={`${activeCall.meeting_url}#config.prejoinPageEnabled=false&interfaceConfig.SHOW_JITSI_WATERMARK=false&interfaceConfig.SHOW_WATERMARK_FOR_GUESTS=false`}
+                    title="NeuroLens Specialist Teleconsultation"
+                    allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
+                    className="teleconsult-iframe"
+                  />
+                </div>
+              </div>
+
+              {/* Right Side: Shared Clinical Review & Doctor Notes */}
+              <div className="p-workspace-side">
+                <div className="p-room-tabs">
+                  <button
+                    className={`p-rtab ${meetingWsTab === 'mri' ? 'active' : ''}`}
+                    onClick={() => setMeetingWsTab('mri')}
+                  >
+                    <Brain size={15} /> Shared MRI & Tests
+                  </button>
+                  <button
+                    className={`p-rtab ${meetingWsTab === 'notes' ? 'active' : ''}`}
+                    onClick={() => setMeetingWsTab('notes')}
+                  >
+                    <PenLine size={15} /> Doctor Advice & Notes
+                  </button>
+                  <button
+                    className={`p-rtab ${meetingWsTab === 'chat' ? 'active' : ''}`}
+                    onClick={() => setMeetingWsTab('chat')}
+                  >
+                    <MessageSquare size={15} /> Live Chat
+                  </button>
+                </div>
+
+                {/* Tab 1: Shared MRI Scans & Test Results */}
+                {meetingWsTab === 'mri' && (
+                  <div className="p-rtab-content">
+                    <div className="shared-panel-item">
+                      <div className="spi-header">
+                        <Brain size={16} color="#10B981" />
+                        <h4>Your MRI Neuroimaging Records</h4>
+                      </div>
+                      {patientSummary?.scores?.mri ? (
+                        <div className="shared-mri-card">
+                          <img
+                            src={patientSummary.scores.mri.file_url || 'https://images.unsplash.com/photo-1559757175-5700dde675bc?auto=format&fit=crop&q=80&w=300'}
+                            alt="MRI Brain Scan"
+                            className="shared-mri-img"
+                          />
+                          <div className="shared-mri-meta">
+                            <p><strong>Hippocampal Vol:</strong> {Number(patientSummary.scores.mri.hippocampal_vol || 0).toFixed(0)} mm³</p>
+                            <p><strong>Cortical Atrophy:</strong> {Number(patientSummary.scores.mri.atrophy_pct || 0).toFixed(1)}%</p>
+                            <span className="shared-risk-badge" style={{ background: patientSummary.scores.mri.risk_level === 'High' ? '#fee2e2' : '#dcfce7', color: patientSummary.scores.mri.risk_level === 'High' ? '#dc2626' : '#16a34a' }}>
+                              {patientSummary.scores.mri.risk_level} Risk
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>No MRI scans uploaded yet. You can upload in the MRI Analysis section.</p>
+                      )}
+                    </div>
+
+                    <div className="shared-panel-item">
+                      <div className="spi-header">
+                        <Activity size={16} color="#6366f1" />
+                        <h4>Diagnostic Test Scores</h4>
+                      </div>
+                      <div className="shared-scores-list">
+                        <div className="ssl-item">
+                          <span>MMSE</span>
+                          <strong>{patientSummary?.scores?.MMSE ? `${patientSummary.scores.MMSE.score}/30` : '—'}</strong>
+                        </div>
+                        <div className="ssl-item">
+                          <span>MoCA</span>
+                          <strong>{patientSummary?.scores?.MoCA ? `${patientSummary.scores.MoCA.score}/30` : '—'}</strong>
+                        </div>
+                        <div className="ssl-item">
+                          <span>Speech Stability</span>
+                          <strong>{patientSummary?.scores?.speech ? `${patientSummary.scores.speech.stability_pct}%` : '—'}</strong>
+                        </div>
+                        <div className="ssl-item">
+                          <span>Clock Task</span>
+                          <strong>{patientSummary?.scores?.Clock ? `${patientSummary.scores.Clock.score}/5` : '—'}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab 2: Doctor Improvement Notes */}
+                {meetingWsTab === 'notes' && (
+                  <div className="p-rtab-content">
+                    <div className="spi-header">
+                      <ShieldCheck size={16} color="#16a34a" />
+                      <h4>Doctor's Clinical Notes & Recommendations</h4>
+                    </div>
+                    {patientSummary?.reports?.filter(r => r.report_type?.includes('Doctor') || r.report_type?.includes('Note')).length > 0 ? (
+                      <div className="notes-list-col">
+                        {patientSummary.reports.filter(r => r.report_type?.includes('Doctor') || r.report_type?.includes('Note')).map((n, i) => (
+                          <div key={i} className="patient-doc-note-card">
+                            <span className="pdn-date">{new Date(n.created_at).toLocaleDateString()} · {n.title}</span>
+                            <p>{n.summary}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="empty-notes-hint">
+                        <p>Your doctor's clinical notes, targeted areas for improvement, and prescriptions will appear here live once saved during your consultation.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Tab 3: Discussion Chat */}
+                {meetingWsTab === 'chat' && (
+                  <div className="p-rtab-content chat-tab-col">
+                    <div className="room-chat-messages">
+                      {roomChat.map((msg, i) => (
+                        <div key={i} className={`p-chat-bubble ${msg.sender}`}>
+                          <span className="p-chat-sender">{msg.sender === 'patient' ? 'You' : msg.sender === 'doctor' ? activeCall.doctor : 'System'}</span>
+                          <p>{msg.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!patientChatMsg.trim()) return;
+                        setRoomChat(prev => [...prev, { sender: 'patient', text: patientChatMsg.trim() }]);
+                        setPatientChatMsg('');
+                      }}
+                      className="p-chat-input-row"
+                    >
+                      <input
+                        type="text"
+                        placeholder="Type question or note for your doctor..."
+                        value={patientChatMsg}
+                        onChange={(e) => setPatientChatMsg(e.target.value)}
+                      />
+                      <button type="submit">Send</button>
+                    </form>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Bottom Bar Controls */}
@@ -677,11 +831,11 @@ const ConsultDoctor = () => {
               <div className="footer-left">
                 {activeCall.notes ? (
                   <span className="notes-preview">
-                    <strong>Patient Note:</strong> {activeCall.notes}
+                    <strong>Reason for Consultation:</strong> {activeCall.notes}
                   </span>
                 ) : (
                   <span className="notes-preview">
-                    Encrypted WebRTC audio & video streaming active.
+                    Encrypted WebRTC teleconsultation active with {activeCall.doctor}.
                   </span>
                 )}
               </div>

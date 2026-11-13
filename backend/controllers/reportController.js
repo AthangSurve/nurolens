@@ -59,7 +59,7 @@ exports.getClinicalSummary = async (req, res) => {
     // Fetch latest MRI scan
     const { data: mriResults } = await supabase
       .from('mri_scans')
-      .select('hippocampal_vol, atrophy_pct, risk_level, file_name, analyzed_at')
+      .select('hippocampal_vol, atrophy_pct, risk_level, file_name, file_url, analysis_notes, analyzed_at')
       .eq('user_id', userId)
       .order('submitted_at', { ascending: false })
       .limit(1);
@@ -67,25 +67,27 @@ exports.getClinicalSummary = async (req, res) => {
     // Fetch all reports
     const { data: reports } = await supabase
       .from('reports')
-      .select('id, report_id, title, report_type, risk_level, created_at')
+      .select('id, report_id, title, report_type, risk_level, summary, created_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     // Compute overall risk from latest tests
     const latestMMSE = testResults?.find((r) => r.test_type === 'MMSE');
     const latestMoCA = testResults?.find((r) => r.test_type === 'MoCA');
+    const latestClock = testResults?.find((r) => r.test_type === 'ClockDrawing' || r.test_type === 'CLOCK');
+    const latestTrail = testResults?.find((r) => r.test_type === 'TrailMaking' || r.test_type === 'TRAIL');
     const latestSpeech = speechResults?.[0] || null;
     const latestMRI = mriResults?.[0] || null;
 
     // ── Weighted Risk Fusion ────────────────────────────────────────────────
-    // Clinical Tests: 40% (average of MMSE + MoCA adjusted risks)
+    // Clinical Tests: 40% (average of MMSE + MoCA + Clock + Trail adjusted risks)
     // Speech Analysis: 30%
     // MRI Scan: 30%
     const riskScore = { 'Low': 1, 'Moderate': 2, 'High': 3 };
     const scoreToRisk = (s) => s <= 1.5 ? 'Low' : s <= 2.4 ? 'Moderate' : 'High';
 
-    // Clinical component — average of available tests (MMSE + MoCA)
-    const clinicalScores = [latestMMSE, latestMoCA]
+    // Clinical component — average of available tests
+    const clinicalScores = [latestMMSE, latestMoCA, latestClock, latestTrail]
       .filter(Boolean)
       .map((r) => riskScore[r.adjusted_risk || r.risk_level] || 1);
     const clinicalComponent = clinicalScores.length > 0
@@ -127,11 +129,17 @@ exports.getClinicalSummary = async (req, res) => {
           MoCA: latestMoCA
             ? { score: latestMoCA.score, max_score: latestMoCA.max_score, risk_level: latestMoCA.risk_level, adjusted_score: latestMoCA.adjusted_score, adjusted_risk: latestMoCA.adjusted_risk, norm_percentile: latestMoCA.norm_percentile, date: latestMoCA.completed_at }
             : null,
+          Clock: latestClock
+            ? { score: latestClock.score, max_score: latestClock.max_score, risk_level: latestClock.risk_level, date: latestClock.completed_at }
+            : null,
+          Trail: latestTrail
+            ? { score: latestTrail.score, max_score: latestTrail.max_score, risk_level: latestTrail.risk_level, date: latestTrail.completed_at }
+            : null,
           speech: latestSpeech
             ? { stability_pct: latestSpeech.stability_pct, neural_latency: latestSpeech.neural_latency, risk_level: latestSpeech.risk_level, date: latestSpeech.submitted_at }
             : null,
           mri: latestMRI
-            ? { hippocampal_vol: latestMRI.hippocampal_vol, atrophy_pct: latestMRI.atrophy_pct, risk_level: latestMRI.risk_level, date: latestMRI.analyzed_at }
+            ? { hippocampal_vol: latestMRI.hippocampal_vol, atrophy_pct: latestMRI.atrophy_pct, risk_level: latestMRI.risk_level, file_url: latestMRI.file_url, analysis_notes: latestMRI.analysis_notes, date: latestMRI.analyzed_at }
             : null,
         },
         reports:      reports      || [],

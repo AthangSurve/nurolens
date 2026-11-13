@@ -147,10 +147,12 @@ exports.uploadMRI = async (req, res) => {
 
       uploadedScans.push({
         file_name: file.originalname,
+        file_url,
+        analysis_notes: ai_insights,
         file_size_bytes: file.size,
         hippocampal_vol,
         atrophy_pct,
-        risk_level,
+        risk_level: finalRiskLevel,
         status: 'verified',
         scan_id: scanRecord.id,
       });
@@ -184,7 +186,7 @@ exports.getMRIHistory = async (req, res) => {
   try {
     const { data: scans, error } = await supabase
       .from('mri_scans')
-      .select('id, file_name, file_format, file_size_bytes, status, hippocampal_vol, atrophy_pct, risk_level, submitted_at, analyzed_at')
+      .select('id, file_name, file_url, analysis_notes, file_format, file_size_bytes, status, hippocampal_vol, atrophy_pct, risk_level, submitted_at, analyzed_at')
       .eq('user_id', req.user.id)
       .order('submitted_at', { ascending: false })
       .limit(20);

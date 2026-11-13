@@ -16,6 +16,7 @@ exports.getDashboardData = async (req, res) => {
       { data: speechResults },
       { data: mriResults },
       { data: upcomingConsultations },
+      { data: doctorNotes },
     ] = await Promise.all([
       supabase
         .from('test_results')
@@ -45,11 +46,20 @@ exports.getDashboardData = async (req, res) => {
         .eq('status', 'upcoming')
         .order('scheduled_at', { ascending: true })
         .limit(1),
+
+      supabase
+        .from('doctor_notes')
+        .select('id, note, improvements, created_at, doctor_id')
+        .eq('patient_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(3),
     ]);
 
     // --- Derive latest test scores ---
     const latestMMSE = testResults?.find((r) => r.test_type === 'MMSE') || null;
     const latestMoCA = testResults?.find((r) => r.test_type === 'MoCA') || null;
+    const latestClock = testResults?.find((r) => r.test_type === 'ClockDrawing' || r.test_type === 'CLOCK') || null;
+    const latestTrail = testResults?.find((r) => r.test_type === 'TrailMaking' || r.test_type === 'TRAIL') || null;
     const latestSpeech = speechResults?.[0] || null;
     const latestMRI = mriResults?.[0] || null;
 
@@ -116,9 +126,12 @@ exports.getDashboardData = async (req, res) => {
         latest_scores: {
           MMSE: latestMMSE,
           MoCA: latestMoCA,
+          Clock: latestClock,
+          Trail: latestTrail,
           speech: latestSpeech,
           mri: latestMRI,
         },
+        doctor_notes: doctorNotes || [],
         recent_activity: recentActivity,
         upcoming_consultation: upcomingConsultations?.[0] ? {
           ...upcomingConsultations[0],

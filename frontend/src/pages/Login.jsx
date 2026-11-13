@@ -1,25 +1,31 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Activity, Eye, EyeOff, ArrowRight, AlertCircle } from 'lucide-react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Mail, Lock, Activity, Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
 
-  const [email, setEmail]           = useState('');
+  const [email, setEmail]           = useState(location.state?.email || '');
   const [password, setPassword]     = useState('');
   const [showPass, setShowPass]     = useState(false);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
+  const [successMsg, setSuccessMsg] = useState(location.state?.message || '');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      const res = await login(email, password);
+      if (res?.user?.role === 'doctor') {
+        navigate('/doctor-portal');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -38,6 +44,13 @@ const Login = () => {
           <h1>Welcome Back</h1>
           <p>Please enter your details to sign in.</p>
         </div>
+
+        {successMsg && (
+          <div className="auth-success">
+            <CheckCircle2 size={18} />
+            <span>{successMsg}</span>
+          </div>
+        )}
 
         {error && (
           <div className="auth-error">
@@ -72,8 +85,14 @@ const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-              <button type="button" className="icon-right" onClick={() => setShowPass(!showPass)}>
-                {showPass ? <Eye size={18} /> : <EyeOff size={18} />}
+              <button
+                type="button"
+                className="icon-right"
+                onClick={() => setShowPass(!showPass)}
+                aria-label={showPass ? 'Hide password' : 'Show password'}
+                tabIndex={-1}
+              >
+                {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
             <div className="forgot-pass">
@@ -98,6 +117,7 @@ const Login = () => {
         .auth-logo { display: flex; align-items: center; gap: 10px; justify-content: center; text-decoration: none; color: var(--text-primary); font-weight: 800; font-size: 1.5rem; margin-bottom: 25px; }
         .auth-header h1 { font-size: 1.8rem; margin-bottom: 8px; }
         .auth-header p { color: var(--text-secondary); }
+        .auth-success { display: flex; align-items: center; gap: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #15803d; padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: 0.9rem; font-weight: 600; line-height: 1.4; }
         .auth-error { display: flex; align-items: center; gap: 8px; background: #fff1f2; border: 1px solid #fecdd3; color: #b91c1c; padding: 12px 16px; border-radius: 10px; margin-bottom: 20px; font-size: 0.9rem; font-weight: 500; }
         .auth-form { display: flex; flex-direction: column; gap: 20px; }
         .form-group { display: flex; flex-direction: column; gap: 8px; }

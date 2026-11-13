@@ -128,17 +128,35 @@ def predict(audio_path, model_dir):
     prediction = model.predict(features_pca)
 
     if hasattr(model, "predict_proba"):
-        proba      = model.predict_proba(features_pca)[0]
-        confidence = float(np.max(proba))
+        proba = model.predict_proba(features_pca)[0]
+        classes = list(model.classes_)
+        idx_0 = classes.index(0) if 0 in classes else 0
+        idx_1 = classes.index(1) if 1 in classes else 1
+        p_healthy = float(proba[idx_0])
+        p_dementia = float(proba[idx_1])
     else:
-        confidence = 0.5
+        label = int(prediction[0])
+        p_dementia = 0.8 if label == 1 else 0.2
+        p_healthy = 1.0 - p_dementia
 
-    label = int(prediction[0])
+    stability_pct = round(p_healthy * 100, 1)
+
+    # Strictly enforce: High voice stability -> Low dementia risk; Low voice stability -> High dementia risk
+    if stability_pct >= 70.0:
+        risk_level = "Low"
+        pred_label = 0
+    elif stability_pct >= 45.0:
+        risk_level = "Moderate"
+        pred_label = 0 if stability_pct >= 55.0 else 1
+    else:
+        risk_level = "High"
+        pred_label = 1
+
     return {
-        "prediction":    label,
-        "probability":   round(confidence, 4),
-        "stability_pct": round(confidence * 100, 1),
-        "risk_level":    "High" if label == 1 else "Low",
+        "prediction":    pred_label,
+        "probability":   round(p_dementia, 4),
+        "stability_pct": stability_pct,
+        "risk_level":    risk_level,
     }
 
 

@@ -143,28 +143,6 @@ INSERT INTO doctors (full_name, specialty, rating, review_count, location, exper
   'Available Today',
   'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?auto=format&fit=crop&q=80&w=200&h=200',
   'Specialist in early cognitive decline detection with a focus on multimodal AI-assisted diagnostics.'
-),
-(
-  'Dr. Michael Chen',
-  'Dementia Specialist',
-  4.8,
-  94,
-  'San Francisco, US / Remote',
-  '12 years',
-  'Tomorrow',
-  'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?auto=format&fit=crop&q=80&w=200&h=200',
-  'Expert in Alzheimer''s risk profiling and hippocampal volumetric analysis interpretation.'
-),
-(
-  'Dr. Priya Sharma',
-  'Neuropsychologist',
-  4.7,
-  76,
-  'Mumbai, India / Remote',
-  '10 years',
-  'Available Today',
-  'https://images.unsplash.com/photo-1594824476967-48c8b964273f?auto=format&fit=crop&q=80&w=200&h=200',
-  'Pioneer in MMSE/MoCA digital administration and vocal biomarker research for cognitive screening.'
 )
 ON CONFLICT DO NOTHING;
 

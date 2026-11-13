@@ -1,4 +1,4 @@
-from pathlib import Path
+    from pathlib import Path
 import subprocess, sys
 
 SCRIPT_DIR = Path(__file__).parent
