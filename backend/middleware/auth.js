@@ -22,7 +22,7 @@ const protect = async (req, res, next) => {
     // Verify JWT
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'cognifusion_super_secret_jwt_key_2026');
     } catch (err) {
       return res.status(401).json({
         success: false,

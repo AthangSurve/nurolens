@@ -1,2 +1,12 @@
-email - athangsurve12@gmail.com
-pass - patient@123
+# --- Patient Credentials ---
+email: athangsurve12@gmail.com
+pass: patient@123
+(or demo: patient@neurolens.com / patient@123)
+
+# --- Doctor Credentials ---
+email: doctor@neurolens.com
+pass: patient@123
+name: Dr. Sarah Wilson
+
+# --- Doctor Registration Code ---
+code: COGNI-DOCTOR-2026

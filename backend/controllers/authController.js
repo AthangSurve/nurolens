@@ -4,7 +4,7 @@ const supabase = require('../config/supabase');
 
 // ─── Helper: Generate JWT ────────────────────────────────────────────────────
 const signToken = (id, email) => {
-  return jwt.sign({ id, email }, process.env.JWT_SECRET, {
+  return jwt.sign({ id, email }, process.env.JWT_SECRET || 'cognifusion_super_secret_jwt_key_2026', {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 };
