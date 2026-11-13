@@ -39,7 +39,7 @@ const Login = () => {
         <div className="auth-header">
           <Link to="/" className="auth-logo">
             <Activity className="text-primary" size={32} />
-            <span>CogniFusion</span>
+            <span>Neurolens</span>
           </Link>
           <h1>Welcome Back</h1>
           <p>Please enter your details to sign in.</p>
