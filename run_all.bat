@@ -11,7 +11,8 @@ echo ========================================================
 echo.
 
 :: Ensure we are running from project root
-cd /d "%~dp0"
+set "PROJECT_ROOT=%~dp0"
+cd /d "%PROJECT_ROOT%"
 
 :: 1. Check for Node.js
 where node >nul 2>&1
@@ -22,37 +23,45 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
-:: 2. Check backend dependencies
+:: 2. Ensure backend .env exists
+if not exist "backend\.env" (
+    if exist "backend\.env.example" (
+        echo [SETUP] Creating backend\.env from .env.example...
+        copy "backend\.env.example" "backend\.env" >nul
+    )
+)
+
+:: 3. Check backend dependencies
 if not exist "backend\node_modules" (
     echo [SETUP] Installing backend dependencies...
-    cd backend
+    cd /d "%PROJECT_ROOT%backend"
     call npm install
-    cd ..
+    cd /d "%PROJECT_ROOT%"
 )
 
-:: 3. Check frontend dependencies
+:: 4. Check frontend dependencies
 if not exist "frontend\node_modules" (
     echo [SETUP] Installing frontend dependencies...
-    cd frontend
+    cd /d "%PROJECT_ROOT%frontend"
     call npm install
-    cd ..
+    cd /d "%PROJECT_ROOT%"
 )
 
-:: 4. Start Backend Server in a new window
+:: 5. Start Backend Server in a new window
 echo [STARTING] Launching Backend API on http://localhost:5000 ...
-start "NeuroLens Backend [Port 5000]" cmd /k "title NeuroLens Backend [Port 5000] && cd /d "%~dp0backend" && node server.js"
+start "NeuroLens Backend [Port 5000]" cmd /k "title NeuroLens Backend [Port 5000] & cd /d "%PROJECT_ROOT%backend" & node server.js"
 
-:: 5. Short pause to allow backend to bind port
-timeout /t 2 /nobreak >nul
-
-:: 6. Start Frontend Server in a new window
-echo [STARTING] Launching Frontend Client on http://localhost:5173 ...
-start "NeuroLens Frontend [Port 5173]" cmd /k "title NeuroLens Frontend [Port 5173] && cd /d "%~dp0frontend" && npm run dev"
-
-:: 7. Wait for Vite server to initialize
+:: 6. Short pause to allow backend to bind port
 timeout /t 3 /nobreak >nul
 
-:: 8. Open Web Browser
+:: 7. Start Frontend Server in a new window
+echo [STARTING] Launching Frontend Client on http://localhost:5173 ...
+start "NeuroLens Frontend [Port 5173]" cmd /k "title NeuroLens Frontend [Port 5173] & cd /d "%PROJECT_ROOT%frontend" & npm run dev"
+
+:: 8. Wait for Vite server to initialize
+timeout /t 3 /nobreak >nul
+
+:: 9. Open Web Browser
 echo [OPENING] Opening application in your browser...
 start http://localhost:5173
 
